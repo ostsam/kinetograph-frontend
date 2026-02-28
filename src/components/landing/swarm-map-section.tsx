@@ -21,9 +21,9 @@ export function SwarmMapSection() {
 					8 specialized agents working as one coordinated edit team.
 				</h2>
 				<p className="mt-3 max-w-2xl text-sm leading-relaxed text-zinc-400">
-					Each agent handles a specific stage in the pipeline so output quality is
-					consistent, and your team can focus on narrative choices instead of repetitive
-					execution.
+					Each agent handles a specific stage in the pipeline so output quality
+					is consistent, and your team can focus on narrative choices instead of
+					repetitive execution.
 				</p>
 
 				<div className="mt-6 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
@@ -48,7 +48,10 @@ export function SwarmMapSection() {
 				</h3>
 				<ul className="mt-4 space-y-3">
 					{outcomes.map((item) => (
-						<li key={item} className="flex items-start gap-2.5 text-sm text-zinc-300">
+						<li
+							key={item}
+							className="flex items-start gap-2.5 text-sm text-zinc-300"
+						>
 							<CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
 							<span>{item}</span>
 						</li>
