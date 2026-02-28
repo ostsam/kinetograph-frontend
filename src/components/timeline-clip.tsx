@@ -5,7 +5,7 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { Type, Scissors, GripVertical } from 'lucide-react';
+import { Type, Scissors, GripVertical, X } from 'lucide-react';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -14,10 +14,12 @@ function cn(...inputs: ClassValue[]) {
 interface TimelineClipProps {
   clip: PaperEditClip;
   isSelected: boolean;
+  pxPerSecond: number;
   onClick: () => void;
+  onDelete: () => void;
 }
 
-export function TimelineClip({ clip, isSelected, onClick }: TimelineClipProps) {
+export function TimelineClip({ clip, isSelected, pxPerSecond, onClick, onDelete }: TimelineClipProps) {
   const {
     attributes,
     listeners,
@@ -32,8 +34,8 @@ export function TimelineClip({ clip, isSelected, onClick }: TimelineClipProps) {
     transition,
   };
 
-  const duration = clip.out_ms - clip.in_ms;
-  const width = Math.max(100, duration * 0.2);
+  const duration = Math.max(0, clip.out_ms - clip.in_ms);
+  const width = Math.max(8, (duration / 1000) * pxPerSecond);
 
   return (
     <div
@@ -61,7 +63,20 @@ export function TimelineClip({ clip, isSelected, onClick }: TimelineClipProps) {
             {clip.clip_id} {" // "} {clip.clip_type}
           </span>
         </div>
-        {clip.overlay_text && <Type className="h-2.5 w-2.5 text-amber-500/70" />}
+        <div className="flex items-center gap-1">
+          {clip.overlay_text && <Type className="h-2.5 w-2.5 text-amber-500/70" />}
+          <button
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation();
+              onDelete();
+            }}
+            className="rounded-sm p-0.5 text-zinc-600 hover:bg-zinc-700/60 hover:text-red-400 transition-colors"
+            title="Remove clip"
+          >
+            <X className="h-2.5 w-2.5" />
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-1 flex-col p-2 overflow-hidden bg-gradient-to-br from-white/[0.02] to-transparent">
