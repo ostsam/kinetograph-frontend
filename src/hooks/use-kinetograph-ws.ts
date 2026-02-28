@@ -14,7 +14,7 @@ export function useKinetographWS() {
 
   const connect = useCallback(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = process.env.NEXT_PUBLIC_WS_HOST || window.location.host;
+    const host = process.env.NEXT_PUBLIC_WS_HOST || 'localhost:3000';
     const socket = new WebSocket(`${protocol}//${host}/ws`);
 
     socket.onopen = () => setIsConnected(true);
