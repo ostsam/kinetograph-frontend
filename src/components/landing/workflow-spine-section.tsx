@@ -45,7 +45,9 @@ export function WorkflowSpineSection() {
 										<h3 className="mt-2 text-sm font-semibold uppercase tracking-wide text-zinc-100">
 											{item.title}
 										</h3>
-										<p className="mt-1 text-sm text-zinc-400">{item.description}</p>
+										<p className="mt-1 text-sm text-zinc-400">
+											{item.description}
+										</p>
 									</article>
 								</div>
 							</div>
