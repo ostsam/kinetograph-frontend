@@ -27,6 +27,8 @@ import {
 } from "lucide-react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { useRouter } from "next/navigation";
+
 
 function cn(...inputs: ClassValue[]) {
 	return twMerge(clsx(inputs));
@@ -34,7 +36,7 @@ function cn(...inputs: ClassValue[]) {
 
 export default function EditorPage() {
 	useKinetographWS();
-
+	const router = useRouter();
 	const [isSidebarCollapsed, setSidebarCollapsed] = useState(false);
 	const leftPanelRef = useRef<PanelImperativeHandle>(null);
 
@@ -83,7 +85,7 @@ export default function EditorPage() {
 						<div className="flex h-5 w-5 items-center justify-center rounded-sm bg-amber-600 text-black">
 							<Film className="h-3.5 w-3.5 fill-current" />
 						</div>
-						<span className="text-xs font-bold tracking-[0.2em] uppercase text-zinc-100 group-hover:text-amber-500 transition-colors">
+						<span className="text-xs font-bold tracking-[0.2em] uppercase text-zinc-100 group-hover:text-amber-500 transition-colors" onClick={() => router.push("/")}>
 							Kinetograph
 						</span>
 					</div>
