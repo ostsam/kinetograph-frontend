@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
 	title: "Kinetograph",
 	description:
-		"Provide the script and your clips, and let Kinetograph do the rest.",
+		"Autonomous post-production for turning raw footage into an approved final cut.",
 };
 
 export default function RootLayout({
