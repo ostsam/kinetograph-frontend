@@ -96,8 +96,10 @@ The **frontend** is a standalone Next.js app that proxies `/api/*` requests to t
 
 ## Pipeline Flow
 
-```
 <img width="3818" height="3400" alt="diagram-export-3-1-2026-2_17_56-PM" src="https://github.com/user-attachments/assets/a4c244a1-9147-43d7-b1f0-6d03f0c5e708" />
+
+```
+
 
 ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌─────────────┐
 │ Archivist│───▶│ Scripter │───▶│ Producer │───▶│ Synthesizer │
