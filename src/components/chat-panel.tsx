@@ -5,6 +5,7 @@ import {
 	useRef,
 	useState,
 	useCallback,
+	useMemo,
 	type KeyboardEvent,
 	type FormEvent,
 } from "react";
@@ -112,19 +113,37 @@ export function ChatPanel({ onClose }: ChatPanelProps) {
 		try {
 			const res = await KinetographAPI.runPipeline({
 				prompt: text,
-				project_name: text.slice(0, 30).replace(/[^a-zA-Z0-9-_ ]/g, "").trim().replace(/\s+/g, "-").toLowerCase() || "untitled",
+				project_name:
+					text
+						.slice(0, 30)
+						.replace(/[^a-zA-Z0-9-_ ]/g, "")
+						.trim()
+						.replace(/\s+/g, "-")
+						.toLowerCase() || "untitled",
 			});
 			if (res.thread_id) {
 				useChatStore.getState().setThreadId(res.thread_id);
 			}
 			// The WebSocket hook will handle pushing agent updates as messages
 		} catch (err: unknown) {
-			const msg = err instanceof Error ? err.message : "Pipeline failed to start.";
+			const msg =
+				err instanceof Error ? err.message : "Pipeline failed to start.";
 			addSystemMessage(`❌ ${msg}`, "pipeline-error");
 			setProcessing(false);
 			setPipelineActive(false);
 		}
-	}, [input, isProcessing, phase, paperEdit, pipelineActive, addUserMessage, addSystemMessage, setProcessing, setPipelineActive, setPaperEdit]);
+	}, [
+		input,
+		isProcessing,
+		phase,
+		paperEdit,
+		pipelineActive,
+		addUserMessage,
+		addSystemMessage,
+		setProcessing,
+		setPipelineActive,
+		setPaperEdit,
+	]);
 
 	const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
 		if (e.key === "Enter" && !e.shiftKey) {
@@ -280,13 +299,20 @@ function SuggestionButton({ text }: { text: string }) {
 		try {
 			const res = await KinetographAPI.runPipeline({
 				prompt: text,
-				project_name: text.slice(0, 30).replace(/[^a-zA-Z0-9-_ ]/g, "").trim().replace(/\s+/g, "-").toLowerCase() || "untitled",
+				project_name:
+					text
+						.slice(0, 30)
+						.replace(/[^a-zA-Z0-9-_ ]/g, "")
+						.trim()
+						.replace(/\s+/g, "-")
+						.toLowerCase() || "untitled",
 			});
 			if (res.thread_id) {
 				useChatStore.getState().setThreadId(res.thread_id);
 			}
 		} catch (err: unknown) {
-			const msg = err instanceof Error ? err.message : "Pipeline failed to start.";
+			const msg =
+				err instanceof Error ? err.message : "Pipeline failed to start.";
 			addSystemMessage(`❌ ${msg}`, "pipeline-error");
 			setProcessing(false);
 			setPipelineActive(false);
@@ -435,14 +461,22 @@ function ApprovalRequestMessage({ message }: { message: ChatMessage }) {
 	const [showRejectInput, setShowRejectInput] = useState(false);
 	const [rejectReason, setRejectReason] = useState("");
 	const [decided, setDecided] = useState(false);
-	const [expandedClipIds, setExpandedClipIds] = useState<Set<string>>(new Set());
+	const [expandedClipIds, setExpandedClipIds] = useState<Set<string>>(
+		new Set(),
+	);
 
 	const paperEdit = useKinetographStore((s) => s.paperEdit);
 	const addSystemMessage = useChatStore((s) => s.addSystemMessage);
 	const setProcessing = useChatStore((s) => s.setProcessing);
 	const setPipelineActive = useChatStore((s) => s.setPipelineActive);
 
-	const clips = message.paperEdit?.clips || [];
+	const clips = useMemo(
+		() => message.paperEdit?.clips ?? [],
+		[message.paperEdit?.clips],
+	);
+	const allExpanded =
+		clips.length > 0 &&
+		clips.every((clip) => expandedClipIds.has(clip.clip_id));
 	const toggleClipExpanded = useCallback((clipId: string) => {
 		setExpandedClipIds((prev) => {
 			const next = new Set(prev);
@@ -454,6 +488,14 @@ function ApprovalRequestMessage({ message }: { message: ChatMessage }) {
 			return next;
 		});
 	}, []);
+	const toggleAllClipsExpanded = useCallback(() => {
+		setExpandedClipIds((prev) => {
+			const shouldCollapseAll =
+				clips.length > 0 && clips.every((clip) => prev.has(clip.clip_id));
+			if (shouldCollapseAll) return new Set<string>();
+			return new Set(clips.map((clip) => clip.clip_id));
+		});
+	}, [clips]);
 
 	const handleApprove = async () => {
 		setIsApproving(true);
@@ -469,8 +511,7 @@ function ApprovalRequestMessage({ message }: { message: ChatMessage }) {
 				paper_edit: editToApprove || undefined,
 			});
 		} catch (err: unknown) {
-			const msg =
-				err instanceof Error ? err.message : "Approval failed.";
+			const msg = err instanceof Error ? err.message : "Approval failed.";
 			addSystemMessage(`❌ ${msg}`, "pipeline-error");
 			setProcessing(false);
 			setPipelineActive(false);
@@ -485,17 +526,14 @@ function ApprovalRequestMessage({ message }: { message: ChatMessage }) {
 		setDecided(true);
 		setProcessing(true);
 		setPipelineActive(true);
-		addSystemMessage(
-			`🔄 Requesting revision: "${rejectReason}"`,
-		);
+		addSystemMessage(`🔄 Requesting revision: "${rejectReason}"`);
 		try {
 			await KinetographAPI.approvePipeline({
 				action: "reject",
 				reason: rejectReason,
 			});
 		} catch (err: unknown) {
-			const msg =
-				err instanceof Error ? err.message : "Rejection failed.";
+			const msg = err instanceof Error ? err.message : "Rejection failed.";
 			addSystemMessage(`❌ ${msg}`, "pipeline-error");
 			setProcessing(false);
 			setPipelineActive(false);
@@ -520,9 +558,24 @@ function ApprovalRequestMessage({ message }: { message: ChatMessage }) {
 
 						{/* Clip list preview */}
 						<div className="space-y-1 mb-2">
-							<div className="text-[9px] font-medium text-zinc-500 uppercase tracking-wider">
-								{clips.length} clips ·{" "}
-								{message.paperEdit?.title || "Paper Edit"}
+							<div className="flex items-center justify-between gap-2">
+								<div className="text-[9px] font-medium text-zinc-500 uppercase tracking-wider">
+									{clips.length} clips ·{" "}
+									{message.paperEdit?.title || "Paper Edit"}
+								</div>
+								{clips.length > 0 && (
+									<button
+										type="button"
+										onClick={toggleAllClipsExpanded}
+										className="px-0.5 py-0.5 rounded border border-zinc-700 text-zinc-500 hover:text-zinc-300 hover:border-zinc-500 transition-colors"
+									>
+										{allExpanded ? (
+											<Minus className="h-2.5 w-2.5" />
+										) : (
+											<Plus className="h-2.5 w-2.5" />
+										)}
+									</button>
+								)}
 							</div>
 							<div className="max-h-32 overflow-y-auto custom-scrollbar space-y-0.5">
 								{clips.map((clip, i) => {
@@ -571,7 +624,9 @@ function ApprovalRequestMessage({ message }: { message: ChatMessage }) {
 													<Plus className="h-2.5 w-2.5" />
 												)}
 												<span className="sr-only">
-													{isExpanded ? "Collapse clip description" : "Expand clip description"}
+													{isExpanded
+														? "Collapse clip description"
+														: "Expand clip description"}
 												</span>
 											</button>
 											<span className="text-zinc-600 tabular-nums shrink-0">
@@ -667,14 +722,14 @@ function PipelineCompleteMessage({ message }: { message: ChatMessage }) {
 								Download MP4
 							</a>
 							{message.timelinePath && (
-							<a
-								href={`/api/assets/stream?path=${encodeURIComponent(message.timelinePath)}`}
-								download
-								className="flex items-center gap-1 px-2 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-400 transition-colors"
-							>
-								<Download className="h-2.5 w-2.5" />
-								Timeline
-							</a>
+								<a
+									href={`/api/assets/stream?path=${encodeURIComponent(message.timelinePath)}`}
+									download
+									className="flex items-center gap-1 px-2 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-400 transition-colors"
+								>
+									<Download className="h-2.5 w-2.5" />
+									Timeline
+								</a>
 							)}
 						</div>
 					)}
@@ -703,9 +758,7 @@ function ErrorMessage({
 					<AlertCircle className="h-2.5 w-2.5 text-red-400" />
 				</div>
 				<div className="bg-red-500/5 border border-red-500/20 rounded-xl rounded-tl-sm px-3 py-2">
-					<p className="text-[11px] text-red-300 leading-relaxed">
-						{content}
-					</p>
+					<p className="text-[11px] text-red-300 leading-relaxed">{content}</p>
 					{errors && errors.length > 0 && (
 						<div className="mt-1.5 space-y-1">
 							{errors.map((err, i) => (
@@ -737,9 +790,18 @@ function LoadingMessage() {
 				<div className="bg-zinc-800/50 border border-zinc-700/30 rounded-xl rounded-tl-sm px-3 py-2">
 					<div className="flex items-center gap-1.5">
 						<div className="flex gap-0.5">
-							<span className="w-1 h-1 rounded-full bg-zinc-500 animate-bounce" style={{ animationDelay: "0ms" }} />
-							<span className="w-1 h-1 rounded-full bg-zinc-500 animate-bounce" style={{ animationDelay: "150ms" }} />
-							<span className="w-1 h-1 rounded-full bg-zinc-500 animate-bounce" style={{ animationDelay: "300ms" }} />
+							<span
+								className="w-1 h-1 rounded-full bg-zinc-500 animate-bounce"
+								style={{ animationDelay: "0ms" }}
+							/>
+							<span
+								className="w-1 h-1 rounded-full bg-zinc-500 animate-bounce"
+								style={{ animationDelay: "150ms" }}
+							/>
+							<span
+								className="w-1 h-1 rounded-full bg-zinc-500 animate-bounce"
+								style={{ animationDelay: "300ms" }}
+							/>
 						</div>
 					</div>
 				</div>

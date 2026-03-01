@@ -65,8 +65,21 @@ export function useKinetographWS() {
 						break;
 
 					case "phase_update": {
-						setPhase(data.phase);
-						if (data.errors) data.errors.forEach(addError);
+						const phaseErrors = data.errors ?? [];
+						const isRecoverableProducerRevision =
+							data.node === "producer" &&
+							data.phase === Phase.ERROR &&
+							phaseErrors.length > 0 &&
+							phaseErrors.every((err) => err.recoverable);
+
+						// A producer "error" with only recoverable errors is used as a
+						// revision feedback signal, not a fatal pipeline error.
+						if (!isRecoverableProducerRevision) {
+							setPhase(data.phase);
+						}
+						if (!isRecoverableProducerRevision && phaseErrors.length > 0) {
+							phaseErrors.forEach(addError);
+						}
 
 						// renderUrl is only cleared on pipeline_started (new full run).
 						// Edit pipelines keep the current render visible until pipeline_complete replaces it.
@@ -100,14 +113,14 @@ export function useKinetographWS() {
 						// In-progress phases are shown via the Agent Activity Bar,
 						// so we don't create duplicate spinning messages in the chat.
 						chat.removeLoadingMessages();
-						if (isCompleted) {
+						if (isCompleted && !isRecoverableProducerRevision) {
 							chat.addAgentUpdate(agentName, data.phase as Phase, description);
 						}
 
 						// Handle errors in phase updates
-						if (data.errors && data.errors.length > 0) {
+						if (phaseErrors.length > 0 && !isRecoverableProducerRevision) {
 							chat.addPipelineError(
-								data.errors,
+								phaseErrors,
 								`⚠️ ${agentName} encountered errors.`,
 							);
 						}
@@ -133,7 +146,7 @@ export function useKinetographWS() {
 						}
 
 						// Pipeline error
-						if (data.phase === Phase.ERROR) {
+						if (data.phase === Phase.ERROR && !isRecoverableProducerRevision) {
 							chat.setProcessing(false);
 							chat.setPipelineActive(false);
 							chat.setAgentActivity(null);
