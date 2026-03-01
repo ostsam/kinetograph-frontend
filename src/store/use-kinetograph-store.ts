@@ -20,9 +20,11 @@ interface KinetographState {
 	selectedAssetId: string | null;
 	selectedClipId: string | null;
 	playheadMs: number;
+	renderUrl: string | null;
 
 	// Actions
 	setPhase: (phase: Phase) => void;
+	setRenderUrl: (url: string | null) => void;
 	setAssets: (assets: RawAsset[]) => void;
 	addAssets: (assets: RawAsset[]) => void;
 	renameAsset: (assetId: string, fileName: string) => void;
@@ -36,6 +38,12 @@ interface KinetographState {
 	updateClip: (clipId: string, updates: Partial<PaperEditClip>) => void;
 	reorderClips: (clipIds: string[]) => void;
 	deleteClip: (clipId: string) => void;
+
+	// History (undo/redo)
+	undoStack: PaperEdit[];
+	redoStack: PaperEdit[];
+	undo: () => void;
+	redo: () => void;
 
 	// Player Actions
 	setPlayhead: (ms: number) => void;
@@ -63,8 +71,12 @@ export const useKinetographStore = create<KinetographState>((set, get) => ({
 	selectedAssetId: null,
 	selectedClipId: null,
 	playheadMs: 0,
+	renderUrl: null,
+	undoStack: [],
+	redoStack: [],
 
 	setPhase: (phase) => set({ phase }),
+	setRenderUrl: (url) => set({ renderUrl: url }),
 	setAssets: (assets) =>
 		set((state) => ({
 			assets,
@@ -112,6 +124,31 @@ export const useKinetographStore = create<KinetographState>((set, get) => ({
 	addError: (error) => set((state) => ({ errors: [...state.errors, error] })),
 	clearErrors: () => set({ errors: [] }),
 
+	undo: () =>
+		set((state) => {
+			if (state.undoStack.length === 0) return state;
+			const [prev, ...rest] = state.undoStack;
+			return {
+				paperEdit: prev,
+				undoStack: rest,
+				redoStack: state.paperEdit
+					? [state.paperEdit, ...state.redoStack].slice(0, 50)
+					: state.redoStack,
+			};
+		}),
+	redo: () =>
+		set((state) => {
+			if (state.redoStack.length === 0) return state;
+			const [next, ...rest] = state.redoStack;
+			return {
+				paperEdit: next,
+				redoStack: rest,
+				undoStack: state.paperEdit
+					? [state.paperEdit, ...state.undoStack].slice(0, 50)
+					: state.undoStack,
+			};
+		}),
+
 	updateClip: (clipId, updates) =>
 		set((state) => {
 			if (!state.paperEdit) return state;
@@ -128,6 +165,8 @@ export const useKinetographStore = create<KinetographState>((set, get) => ({
 					clips: newClips,
 					total_duration_ms: totalDurationMs,
 				},
+				undoStack: [structuredClone(state.paperEdit), ...state.undoStack].slice(0, 50),
+				redoStack: [],
 			};
 		}),
 
@@ -140,6 +179,8 @@ export const useKinetographStore = create<KinetographState>((set, get) => ({
 				.filter((c): c is PaperEditClip => !!c);
 			return {
 				paperEdit: { ...state.paperEdit, clips: newClips },
+				undoStack: [structuredClone(state.paperEdit), ...state.undoStack].slice(0, 50),
+				redoStack: [],
 			};
 		}),
 
@@ -161,6 +202,8 @@ export const useKinetographStore = create<KinetographState>((set, get) => ({
 				},
 				selectedClipId:
 					state.selectedClipId === clipId ? null : state.selectedClipId,
+				undoStack: [structuredClone(state.paperEdit), ...state.undoStack].slice(0, 50),
+				redoStack: [],
 			};
 		}),
 
@@ -204,6 +247,10 @@ export const useKinetographStore = create<KinetographState>((set, get) => ({
 					clips,
 					music_prompt: current.paperEdit?.music_prompt,
 				},
+				undoStack: current.paperEdit
+					? [structuredClone(current.paperEdit), ...current.undoStack].slice(0, 50)
+					: current.undoStack,
+				redoStack: [],
 			};
 		});
 

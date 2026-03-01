@@ -1,15 +1,12 @@
 "use client";
 
+import { useRef, useCallback, useState, useEffect } from "react";
 import { PaperEditClip } from "@/types/kinetograph";
+import { useKinetographStore } from "@/store/use-kinetograph-store";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { clsx, type ClassValue } from "clsx";
-import { twMerge } from "tailwind-merge";
-import { Type, Scissors, GripVertical, X } from "lucide-react";
-
-function cn(...inputs: ClassValue[]) {
-	return twMerge(clsx(inputs));
-}
+import { GripVertical, Scissors, Volume2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface TimelineClipProps {
 	clip: PaperEditClip;
@@ -17,6 +14,39 @@ interface TimelineClipProps {
 	pxPerSecond: number;
 	onClick: () => void;
 	onDelete: () => void;
+	onTrim?: (edge: "in" | "out", deltaMs: number) => void;
+}
+
+function generateClipThumbnail(streamUrl: string, seekTime: number): Promise<string> {
+	return new Promise((resolve) => {
+		const video = document.createElement("video");
+		video.preload = "auto";
+		video.muted = true;
+		video.crossOrigin = "anonymous";
+		video.src = streamUrl;
+
+		const canvas = document.createElement("canvas");
+
+		video.onloadeddata = () => {
+			video.currentTime = seekTime;
+		};
+
+		video.onseeked = () => {
+			canvas.width = video.videoWidth || 320;
+			canvas.height = video.videoHeight || 180;
+			const ctx = canvas.getContext("2d");
+			if (ctx) {
+				ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+				resolve(canvas.toDataURL("image/jpeg", 0.6));
+			} else {
+				resolve("");
+			}
+			video.removeAttribute("src");
+			video.load();
+		};
+
+		video.onerror = () => resolve("");
+	});
 }
 
 export function TimelineClip({
@@ -25,7 +55,11 @@ export function TimelineClip({
 	pxPerSecond,
 	onClick,
 	onDelete,
+	onTrim,
 }: TimelineClipProps) {
+	const assets = useKinetographStore((s) => s.assets);
+	const [thumbnailUrl, setThumbnailUrl] = useState<string>("");
+
 	const {
 		attributes,
 		listeners,
@@ -35,13 +69,71 @@ export function TimelineClip({
 		isDragging,
 	} = useSortable({ id: clip.clip_id });
 
+	const trimStartXRef = useRef<number>(0);
+	const trimEdgeRef = useRef<"in" | "out">("in");
+
+	// Generate thumbnail for this clip
+	useEffect(() => {
+		const asset = assets.find(
+			(a) => a.file_name === clip.source_file || a.file_path === clip.source_file,
+		);
+		if (!asset) return;
+
+		// If asset has a thumbnail, use it directly
+		if (asset.thumbnail_url) {
+			setThumbnailUrl(asset.thumbnail_url);
+			return;
+		}
+
+		// Otherwise generate from the clip's in-point
+		const seekSec = clip.in_ms / 1000;
+		generateClipThumbnail(asset.stream_url, seekSec).then((url) => {
+			if (url) setThumbnailUrl(url);
+		});
+	}, [clip.source_file, clip.in_ms, assets]);
+
+	const handleTrimPointerDown = useCallback(
+		(e: React.PointerEvent, edge: "in" | "out") => {
+			e.preventDefault();
+			e.stopPropagation();
+			trimStartXRef.current = e.clientX;
+			trimEdgeRef.current = edge;
+			(e.target as HTMLElement).setPointerCapture(e.pointerId);
+		},
+		[],
+	);
+
+	const handleTrimPointerMove = useCallback(
+		(e: React.PointerEvent) => {
+			if (!onTrim) return;
+			if (!(e.target as HTMLElement).hasPointerCapture(e.pointerId)) return;
+			const deltaX = e.clientX - trimStartXRef.current;
+			if (Math.abs(deltaX) < 2) return;
+			const deltaMs = (deltaX / pxPerSecond) * 1000;
+			trimStartXRef.current = e.clientX;
+			onTrim(trimEdgeRef.current, deltaMs);
+		},
+		[onTrim, pxPerSecond],
+	);
+
+	const handleTrimPointerUp = useCallback((e: React.PointerEvent) => {
+		(e.target as HTMLElement).releasePointerCapture(e.pointerId);
+	}, []);
+
 	const style = {
 		transform: CSS.Transform.toString(transform),
 		transition,
 	};
 
 	const duration = Math.max(0, clip.out_ms - clip.in_ms);
-	const width = Math.max(8, (duration / 1000) * pxPerSecond);
+	const width = Math.max(40, (duration / 1000) * pxPerSecond);
+
+	const clipColor =
+		clip.clip_type === "a-roll"
+			? "border-l-blue-500"
+			: clip.clip_type === "b-roll"
+				? "border-l-emerald-500"
+				: "border-l-purple-500";
 
 	return (
 		<div
@@ -49,79 +141,71 @@ export function TimelineClip({
 			style={{ ...style, width: `${width}px` }}
 			onClick={onClick}
 			className={cn(
-				"relative flex h-20 shrink-0 flex-col border-r border-black/40 transition-all select-none group overflow-hidden",
+				"relative flex h-16 shrink-0 flex-col border-r border-black/40 transition-all select-none group overflow-hidden border-l-2",
+				clipColor,
 				isSelected
-					? "bg-amber-500/20 shadow-[inset_0_0_0_1px_rgba(245,158,11,0.5)] z-10"
-					: "bg-zinc-800/80 hover:bg-zinc-700/80",
-				isDragging && "opacity-50 z-50",
-				clip.clip_type === "synth" &&
-					"bg-purple-900/20 border-l-2 border-l-purple-500",
-				clip.clip_type === "a-roll" &&
-					"bg-blue-900/20 border-l-2 border-l-blue-500",
+					? "bg-blue-500/15 ring-1 ring-blue-500/50 z-10"
+					: "bg-zinc-800/80 hover:bg-zinc-750/80",
+				isDragging && "opacity-40 z-50",
 			)}
 		>
+			{/* Thumbnail background */}
+			{thumbnailUrl && (
+				<div
+					className="absolute inset-0 bg-cover bg-center opacity-30 group-hover:opacity-40 transition-opacity"
+					style={{ backgroundImage: `url(${thumbnailUrl})` }}
+				/>
+			)}
+
+			{/* Header with drag handle */}
 			<div
 				{...attributes}
 				{...listeners}
-				className="flex h-5 items-center justify-between px-2 bg-black/20 border-b border-black/40 cursor-grab active:cursor-grabbing"
+				className="relative flex h-4 items-center justify-between px-1.5 bg-black/40 border-b border-black/30 cursor-grab active:cursor-grabbing"
 			>
-				<div className="flex items-center gap-1.5">
-					<GripVertical className="h-2.5 w-2.5 text-zinc-600" />
-					<span className="text-[9px] font-bold uppercase tracking-tighter text-zinc-400">
-						{clip.clip_id} {" // "} {clip.clip_type}
+				<div className="flex items-center gap-1">
+					<GripVertical className="h-2 w-2 text-zinc-500" />
+					<span className="text-[8px] font-medium text-zinc-400 truncate max-w-[80px]">
+						{clip.source_file.replace(/\.[^.]+$/, "")}
 					</span>
 				</div>
-				<div className="flex items-center gap-1">
-					{clip.overlay_text && (
-						<Type className="h-2.5 w-2.5 text-amber-500/70" />
-					)}
-					<button
-						onPointerDown={(event) => event.stopPropagation()}
-						onClick={(event) => {
-							event.stopPropagation();
-							onDelete();
-						}}
-						className="rounded-sm p-0.5 text-zinc-600 hover:bg-zinc-700/60 hover:text-red-400 transition-colors"
-						title="Remove clip"
-					>
-						<X className="h-2.5 w-2.5" />
-					</button>
+				{clip.transition === "crossfade" && (
+					<Scissors className="h-2 w-2 text-zinc-500" />
+				)}
+			</div>
+
+			{/* Body */}
+			<div className="relative flex flex-1 flex-col justify-end p-1.5 overflow-hidden">
+				<div className="flex items-center justify-between text-[8px] font-mono text-zinc-500">
+					<span className={isSelected ? "text-blue-400/80" : ""}>
+						{(clip.in_ms / 1000).toFixed(1)}s
+					</span>
+					<span className="text-zinc-600">
+						{(duration / 1000).toFixed(1)}s
+					</span>
+					<span>{(clip.out_ms / 1000).toFixed(1)}s</span>
 				</div>
 			</div>
 
-			<div className="flex flex-1 flex-col p-2 overflow-hidden bg-gradient-to-br from-white/[0.02] to-transparent">
-				<p className="truncate text-[10px] font-bold text-zinc-200 leading-tight mb-1 uppercase tracking-tight">
-					{clip.description || clip.source_file}
-				</p>
-
-				<div className="mt-auto flex items-center justify-between text-[9px] font-mono tabular text-zinc-500">
-					<div className="flex items-center gap-1">
-						<span className={isSelected ? "text-amber-500/80" : ""}>
-							{(clip.in_ms / 1000).toFixed(2)}s
-						</span>
-						<span className="opacity-20">|</span>
-						<span>{(clip.out_ms / 1000).toFixed(2)}s</span>
-					</div>
-				</div>
-			</div>
-
+			{/* Trim handles */}
 			<div
-				className="absolute left-0 inset-y-5 w-1 bg-black/20 hover:bg-amber-500/50 cursor-ew-resize transition-colors"
+				onPointerDown={(e) => handleTrimPointerDown(e, "in")}
+				onPointerMove={handleTrimPointerMove}
+				onPointerUp={handleTrimPointerUp}
+				className="absolute left-0 inset-y-4 w-1.5 bg-transparent hover:bg-blue-500/50 cursor-ew-resize transition-colors touch-none z-20"
 				title="Trim In"
 			/>
 			<div
-				className="absolute right-0 inset-y-5 w-1 bg-black/20 hover:bg-amber-500/50 cursor-ew-resize transition-colors"
+				onPointerDown={(e) => handleTrimPointerDown(e, "out")}
+				onPointerMove={handleTrimPointerMove}
+				onPointerUp={handleTrimPointerUp}
+				className="absolute right-0 inset-y-4 w-1.5 bg-transparent hover:bg-blue-500/50 cursor-ew-resize transition-colors touch-none z-20"
 				title="Trim Out"
 			/>
 
-			{clip.transition === "crossfade" && (
-				<div className="absolute -right-2 top-1/2 -translate-y-1/2 z-20 flex h-4 w-4 items-center justify-center bg-zinc-900 border border-zinc-700 rotate-45">
-					<Scissors className="h-2 w-2 text-zinc-500 -rotate-45" />
-				</div>
-			)}
-
+			{/* Selection highlight */}
 			{isSelected && (
-				<div className="absolute inset-0 border border-amber-500/30 pointer-events-none" />
+				<div className="absolute inset-0 border border-blue-500/40 pointer-events-none" />
 			)}
 		</div>
 	);
