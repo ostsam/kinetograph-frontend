@@ -93,7 +93,7 @@ export const PHASE_DESCRIPTIONS: Record<Phase, string> = {
   [Phase.NORMALIZED]: "✅ All clips normalized.",
   [Phase.RENDERING]: "🖥️ Director is rendering the final cut with MoviePy...",
   [Phase.RENDERED]: "✅ Render complete!",
-  ["captioning" as Phase]: "📝 Captioner is burning captions into the video...",
+  [Phase.CAPTIONING]: "📝 Captioner is burning captions into the video...",
   [Phase.MASTERING]: "🔊 Sound Engineer is mastering audio — music, levels, normalization...",
   [Phase.MASTERED]: "✅ Audio mastered.",
   [Phase.EXPORTING]: "📤 Exporting timeline files (FCPXML, OTIO)...",

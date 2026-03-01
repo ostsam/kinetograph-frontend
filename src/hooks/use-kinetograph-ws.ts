@@ -17,6 +17,13 @@ export function useKinetographWS() {
 	const connectRef = useRef<() => void>(() => {});
 
 	const connect = useCallback(() => {
+		// Close any existing connection first to prevent duplicate sockets
+		if (ws.current) {
+			ws.current.onclose = null; // prevent recursive reconnect
+			ws.current.close();
+			ws.current = null;
+		}
+
 		const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
 		const host = process.env.NEXT_PUBLIC_WS_HOST || "localhost:8080";
 		const socket = new WebSocket(`${protocol}//${host}/ws`);
@@ -36,6 +43,16 @@ export function useKinetographWS() {
 				switch (data.type) {
 					case "connected":
 						setPhase(data.phase);
+						// On reconnect, clear stale spinner state if pipeline isn't running
+						if (
+							data.phase === Phase.IDLE ||
+							data.phase === Phase.COMPLETE ||
+							data.phase === Phase.ERROR
+						) {
+							chat.setAgentActivity(null);
+							chat.setProcessing(false);
+							chat.setPipelineActive(false);
+						}
 						break;
 
 					case "pipeline_started":
@@ -60,22 +77,32 @@ export function useKinetographWS() {
 							`${agentName} → ${data.phase}`;
 
 						// Update agent activity indicator
-						const isActive = !data.phase.toString().endsWith("ed") &&
-							data.phase !== Phase.COMPLETE &&
-							data.phase !== Phase.ERROR &&
-							data.phase !== Phase.AWAITING_APPROVAL;
+						const phaseStr = data.phase.toString();
+						const isCompleted = phaseStr.endsWith("ed") ||
+							data.phase === Phase.COMPLETE ||
+							data.phase === Phase.ERROR ||
+							data.phase === Phase.AWAITING_APPROVAL;
 
-						chat.setAgentActivity({
-							agent: agentName,
-							phase: data.phase as Phase,
-							description,
-							startedAt: Date.now(),
-							isActive,
-						});
+						if (isCompleted) {
+							// Phase finished — clear the spinner immediately
+							chat.setAgentActivity(null);
+						} else {
+							chat.setAgentActivity({
+								agent: agentName,
+								phase: data.phase as Phase,
+								description,
+								startedAt: Date.now(),
+								isActive: true,
+							});
+						}
 
-						// Add agent update chat message
+						// Only add chat messages for COMPLETED phases.
+						// In-progress phases are shown via the Agent Activity Bar,
+						// so we don't create duplicate spinning messages in the chat.
 						chat.removeLoadingMessages();
-						chat.addAgentUpdate(agentName, data.phase as Phase, description);
+						if (isCompleted) {
+							chat.addAgentUpdate(agentName, data.phase as Phase, description);
+						}
 
 						// Handle errors in phase updates
 						if (data.errors && data.errors.length > 0) {
@@ -85,10 +112,13 @@ export function useKinetographWS() {
 							);
 						}
 
-						// Fetch paper edit when scripted/awaiting approval
+						// Fetch paper edit when scripted or rendered.
+						// AWAITING_APPROVAL is handled by the 'awaiting_approval' event (includes payload).
+						// RENDERED is included so the Director's transition metadata
+						// (crossfade markers) gets picked up by the timeline.
 						if (
 							data.phase === Phase.SCRIPTED ||
-							data.phase === Phase.AWAITING_APPROVAL
+							data.phase === Phase.RENDERED
 						) {
 							KinetographAPI.getPaperEdit().then((pe) => {
 								setPaperEdit(pe);
@@ -148,7 +178,7 @@ export function useKinetographWS() {
 								mp4s.find((f) => f.file_name.includes("_captioned")) ||
 								mp4s[mp4s.length - 1];
 							const timeline = out.files.find(
-								(f) => f.type === "fcpxml" || f.type === "otio",
+								(f) => f.type === "otio",
 							);
 
 							// Set the rendered video URL for the viewer
@@ -192,6 +222,24 @@ export function useKinetographWS() {
 				ws.current.send(JSON.stringify({ type: "ping" }));
 			}
 		}, 20000);
+		return () => clearInterval(interval);
+	}, []);
+
+	// Safety timeout: auto-clear spinner if stuck for >3 minutes
+	useEffect(() => {
+		const interval = setInterval(() => {
+			const { agentActivity, setAgentActivity, setProcessing, setPipelineActive } =
+				useChatStore.getState();
+			if (agentActivity?.isActive && agentActivity.startedAt) {
+				const elapsed = Date.now() - agentActivity.startedAt;
+				if (elapsed > 3 * 60 * 1000) {
+					console.warn("Agent activity stuck for >3min, auto-clearing spinner");
+					setAgentActivity(null);
+					setProcessing(false);
+					setPipelineActive(false);
+				}
+			}
+		}, 10000);
 		return () => clearInterval(interval);
 	}, []);
 

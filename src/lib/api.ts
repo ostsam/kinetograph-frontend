@@ -16,7 +16,8 @@ import {
 
 const api = ky.create({
 	prefixUrl: "/api",
-	timeout: false,
+	timeout: 120_000, // 2 min default (agents can take time)
+	retry: { limit: 2, methods: ["get"] },
 });
 
 export const KinetographAPI = {
