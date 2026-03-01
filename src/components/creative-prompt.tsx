@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import { useKinetographStore } from "@/store/use-kinetograph-store";
-import { KinetographAPI } from "@/lib/api";
+import { KinetographAPI, normalizeAPIError } from "@/lib/api";
 import { Terminal, Loader2, Cpu } from "lucide-react";
 import { Phase } from "@/types/kinetograph";
 
 export function CreativePrompt() {
 	const [prompt, setPrompt] = useState("");
 	const [isSubmitting, setIsSubmitting] = useState(false);
+	const [errorMessage, setErrorMessage] = useState<string | null>(null);
 	const phase = useKinetographStore((s) => s.phase);
 	const assets = useKinetographStore((s) => s.assets);
 
@@ -17,10 +18,15 @@ export function CreativePrompt() {
 		if (!prompt.trim() || isSubmitting) return;
 
 		setIsSubmitting(true);
+		setErrorMessage(null);
 		try {
 			await KinetographAPI.runPipeline({ prompt });
 		} catch (err) {
-			console.error("Failed to run pipeline:", err);
+			const normalized = await normalizeAPIError(
+				err,
+				"Failed to start pipeline.",
+			);
+			setErrorMessage(normalized.detail);
 		} finally {
 			setIsSubmitting(false);
 		}
@@ -94,6 +100,12 @@ export function CreativePrompt() {
 					</button>
 				</div>
 			</div>
+
+			{errorMessage && (
+				<div className="border-t border-red-900/40 bg-red-950/30 px-2 py-1.5 text-[10px] text-red-200">
+					{errorMessage}
+				</div>
+			)}
 
 			{isDisabled && assets.length > 0 && phase !== Phase.IDLE && (
 				<div className="absolute inset-0 z-10 flex items-center justify-center bg-black/60 backdrop-blur-[1px]">

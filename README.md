@@ -16,6 +16,16 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+### Backend Integration Env
+
+Set these in `.env` for local integration with the Python backend on `:8080`:
+
+```bash
+KINETOGRAPH_API_ORIGIN=http://localhost:8080
+NEXT_PUBLIC_WS_URL=ws://localhost:8080/ws
+NEXT_PUBLIC_ENABLE_LOCAL_MOCK_INGEST=true
+```
+
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.

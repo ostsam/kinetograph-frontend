@@ -151,6 +151,53 @@ export interface ApprovalRequest {
   reason?: string;
 }
 
+export interface UploadAssetResponse {
+  status: 'uploaded';
+  file_name: string;
+  file_path: string;
+  asset_type: 'a-roll' | 'b-roll';
+  duration_ms: number;
+  width: number;
+  height: number;
+  fps: number;
+  has_audio: boolean;
+  codec: string;
+}
+
+export interface AddClipRequest {
+  clip_id: string;
+  source_file: string;
+  in_ms: number;
+  out_ms: number;
+  clip_type: ClipType;
+  overlay_text?: string;
+  transition?: TransitionType;
+  search_query?: string;
+  description: string;
+}
+
+export interface AddClipResponse {
+  status: 'added';
+  total_clips: number;
+}
+
+export interface DeleteClipResponse {
+  status: 'deleted';
+  remaining_clips: number;
+}
+
+export interface ClipUpdateRequest {
+  clip_id: string;
+  in_ms?: number;
+  out_ms?: number;
+  source_file?: string;
+  clip_type?: ClipType;
+  overlay_text?: string;
+  transition?: TransitionType;
+  search_query?: string;
+  description?: string;
+}
+
 export interface OutputFile {
   file_name: string;
   file_path: string;
@@ -162,6 +209,15 @@ export interface OutputFile {
 export interface OutputResponse {
   files: OutputFile[];
   total: number;
+}
+
+export type SegmentAnchor = PaperEditClip | null;
+export type SegmentBrollItem = PaperEditClip;
+
+export interface TimelineSegment {
+  id: string;
+  anchor: SegmentAnchor;
+  bRolls: SegmentBrollItem[];
 }
 
 export type WSEvent =

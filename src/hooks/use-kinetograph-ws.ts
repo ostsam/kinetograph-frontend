@@ -5,6 +5,7 @@ import { KinetographAPI } from "@/lib/api";
 
 export function useKinetographWS() {
 	const ws = useRef<WebSocket | null>(null);
+	const isUnmounted = useRef(false);
 	const [isConnected, setIsConnected] = useState(false);
 	const setPhase = useKinetographStore((s) => s.setPhase);
 	const addError = useKinetographStore((s) => s.addError);
@@ -13,15 +14,20 @@ export function useKinetographWS() {
 	const connectRef = useRef<() => void>(() => {});
 
 	const connect = useCallback(() => {
+		const explicitUrl = process.env.NEXT_PUBLIC_WS_URL;
 		const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-		const host = process.env.NEXT_PUBLIC_WS_HOST || "localhost:3000";
-		const socket = new WebSocket(`${protocol}//${host}/ws`);
+		const fallbackHost =
+			process.env.NEXT_PUBLIC_WS_HOST || `${window.location.hostname}:8080`;
+		const socketUrl = explicitUrl || `${protocol}//${fallbackHost}/ws`;
+		const socket = new WebSocket(socketUrl);
 
 		socket.onopen = () => setIsConnected(true);
 		socket.onclose = () => {
 			setIsConnected(false);
 			console.log("WS Disconnected. Reconnecting...");
-			setTimeout(() => connectRef.current(), 3000);
+			if (!isUnmounted.current) {
+				setTimeout(() => connectRef.current(), 3000);
+			}
 		};
 
 		socket.onmessage = (event) => {
@@ -61,8 +67,12 @@ export function useKinetographWS() {
 	}, [connect]);
 
 	useEffect(() => {
+		isUnmounted.current = false;
 		connect();
-		return () => ws.current?.close();
+		return () => {
+			isUnmounted.current = true;
+			ws.current?.close();
+		};
 	}, [connect]);
 
 	useEffect(() => {
