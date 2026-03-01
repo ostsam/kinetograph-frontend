@@ -138,7 +138,7 @@ export interface RunRequest {
 }
 
 export interface RunResponse {
-  status: 'awaiting_approval' | 'complete';
+  status: 'started' | 'awaiting_approval' | 'complete';
   thread_id?: string;
   message?: string;
   phase?: string;
@@ -170,4 +170,20 @@ export type WSEvent =
   | { type: 'pipeline_started'; thread_id: string }
   | { type: 'phase_update'; node: string; phase: Phase; timestamp: string; errors: PipelineError[] }
   | { type: 'awaiting_approval'; paper_edit: PaperEdit }
+  | { type: 'pipeline_complete'; phase: Phase; render_path?: string; timeline_path?: string }
   | { type: 'pong' };
+
+// ─── Edit types (post-pipeline) ────────────────────────────────────────────────
+
+export interface EditRequest {
+  instruction: string;
+  edit_type?: 'rescript' | 'resynthesize' | 'rerender' | 'audio' | 'general';
+}
+
+export interface EditResponse {
+  status: 'awaiting_approval' | 'complete' | 'error';
+  message: string;
+  phase?: string;
+  paper_edit?: PaperEdit;
+  render_path?: string;
+}

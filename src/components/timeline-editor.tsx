@@ -57,10 +57,10 @@ const TRANSITION_OPTIONS: { value: TransitionType; label: string; shortLabel: st
 	{ value: "slide-right", label: "Slide Right", shortLabel: "S\u2192" },
 ];
 
-// Pixel width of a transition indicator between clips (resting state)
-const TRANSITION_CUT_PX = 6;        // w-1.5
-const TRANSITION_ACTIVE_PX = 20;     // w-5 (non-cut transition)
-const TRANSITION_SELECTED_PX = 28;   // w-7 (selected)
+// Pixel width of a transition indicator between clips
+const TRANSITION_CUT_PX = 4;
+const TRANSITION_ACTIVE_PX = 36;
+const TRANSITION_SELECTED_PX = 44;
 
 function getTransitionWidthPx(
 	clip: PaperEditClip,
@@ -151,6 +151,33 @@ function formatTimecode(ms: number) {
 function getTickStepSeconds(pxPerSecond: number) {
 	const options = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600];
 	return options.find((s) => s * pxPerSecond >= MIN_LABEL_SPACING_PX) ?? options[options.length - 1];
+}
+
+/** Deterministic pseudo-waveform bars for the audio track */
+function AudioWaveformBars({ clipId, width }: { clipId: string; width: number }) {
+	const bars = useMemo(() => {
+		let hash = 0;
+		for (let i = 0; i < clipId.length; i++) {
+			hash = ((hash << 5) - hash + clipId.charCodeAt(i)) | 0;
+		}
+		const count = Math.max(6, Math.min(Math.floor(width / 3), 120));
+		return Array.from({ length: count }, (_, i) => {
+			const s = Math.abs((hash * (i + 1) * 2654435761) | 0) % 1000;
+			return 0.12 + (s / 1000) * 0.88;
+		});
+	}, [clipId, width]);
+
+	return (
+		<>
+			{bars.map((h, i) => (
+				<div
+					key={i}
+					className="w-[2px] rounded-full shrink-0 bg-teal-400/30 group-hover:bg-teal-400/50 transition-colors"
+					style={{ height: `${h * 100}%` }}
+				/>
+			))}
+		</>
+	);
 }
 
 interface TimeRulerProps {
@@ -613,29 +640,41 @@ export function TimelineEditor({ onSeek }: TimelineEditorProps) {
 														setSelectedClip(null);
 													}}
 													className={cn(
-														"shrink-0 flex items-center justify-center h-16 group cursor-pointer transition-all",
+														"shrink-0 flex flex-col items-center justify-center h-16 cursor-pointer transition-all rounded-sm",
 														selectedTransitionClipId === clip.clip_id
-															? "w-7 bg-blue-500/15 border-x border-blue-500/40 rounded"
+															? "bg-purple-500/20 border border-purple-500/40 shadow-[0_0_8px_rgba(168,85,247,0.15)]"
 															: clip.transition && clip.transition !== "cut"
-																? "w-5 hover:bg-purple-500/10 rounded"
-																: "w-1.5 hover:w-5 hover:bg-zinc-800/50",
+																? "bg-gradient-to-b from-purple-500/10 to-transparent border border-purple-500/15 hover:border-purple-500/30"
+																: "hover:bg-zinc-800/30 group",
 													)}
+													style={{ width: `${getTransitionWidthPx(clip, i, selectedTransitionClipId)}px` }}
 													title={`${TRANSITION_OPTIONS.find((t) => t.value === (clip.transition || "cut"))?.label ?? "Cut"}${clip.transition_duration_ms ? ` \u00b7 ${clip.transition_duration_ms}ms` : ""}`}
 												>
-													{(clip.transition && clip.transition !== "cut") || selectedTransitionClipId === clip.clip_id ? (
-														<div className="flex flex-col items-center gap-0.5">
+													{clip.transition && clip.transition !== "cut" ? (
+														<div className="flex flex-col items-center gap-0.5 overflow-hidden">
 															<div className={cn(
-																"w-2 h-2 rounded-sm rotate-45 border transition-colors",
+																"w-4 h-4 rounded flex items-center justify-center",
 																selectedTransitionClipId === clip.clip_id
-																	? "bg-blue-500/60 border-blue-400"
-																	: "bg-purple-500/40 border-purple-400/40",
-															)} />
-															<span className="text-[5px] font-bold text-zinc-500 group-hover:text-zinc-300 whitespace-nowrap leading-none">
-																{TRANSITION_OPTIONS.find((t) => t.value === (clip.transition || "cut"))?.shortLabel ?? "Cut"}
+																	? "bg-purple-500/30"
+																	: "bg-purple-500/15",
+															)}>
+																<span className={cn(
+																	"text-[8px]",
+																	selectedTransitionClipId === clip.clip_id ? "text-purple-300" : "text-purple-400/70",
+																)}>✦</span>
+															</div>
+															<span className={cn(
+																"text-[6px] font-bold whitespace-nowrap leading-none",
+																selectedTransitionClipId === clip.clip_id ? "text-purple-300" : "text-purple-400/60",
+															)}>
+																{TRANSITION_OPTIONS.find((t) => t.value === (clip.transition || "cut"))?.shortLabel ?? ""}
+															</span>
+															<span className="text-[5px] text-zinc-500 leading-none">
+																{clip.transition_duration_ms ?? 500}ms
 															</span>
 														</div>
 													) : (
-														<div className="w-px h-8 border-l border-dashed border-zinc-700 group-hover:border-zinc-500 transition-colors" />
+														<div className="w-px h-10 border-l border-dashed border-zinc-700/50 group-hover:border-zinc-500 transition-colors" />
 													)}
 												</button>,
 											] : []),
@@ -677,9 +716,41 @@ export function TimelineEditor({ onSeek }: TimelineEditorProps) {
 
 					{/* A1 Track */}
 					<div className="flex items-center">
-						<div className="w-8 shrink-0 text-[7px] font-bold text-zinc-600 text-center">A1</div>
-						<div className="h-8 flex-1 border border-zinc-900/50 bg-zinc-900/10 rounded flex items-center px-4">
-							<span className="text-[7px] font-medium text-zinc-800">Audio</span>
+						<div className="w-8 shrink-0 text-[7px] font-bold text-zinc-600 text-center select-none">A1</div>
+						<div className="flex-1">
+							{paperEdit && paperEdit.clips.length > 0 ? (
+								<div className="flex items-center">
+									{paperEdit.clips.flatMap((clip, i) => {
+										const dur = clip.out_ms - clip.in_ms;
+										const w = Math.max(40, (dur / 1000) * pxPerSecond);
+										const trW = i > 0 ? getTransitionWidthPx(clip, i, selectedTransitionClipId) : 0;
+										return [
+											...(i > 0 ? [
+												<div key={`atr-${clip.clip_id}`} className="shrink-0" style={{ width: `${trW}px` }} />,
+											] : []),
+											<div
+												key={`a-${clip.clip_id}`}
+												onClick={() => { setSelectedClip(clip.clip_id); setSelectedTransitionClipId(null); }}
+												className={cn(
+													"h-8 shrink-0 border-r border-black/30 cursor-pointer group overflow-hidden transition-colors",
+													selectedClipId === clip.clip_id
+														? "bg-teal-500/15 ring-1 ring-teal-500/50"
+														: "bg-zinc-800/40 hover:bg-zinc-800/60",
+												)}
+												style={{ width: `${w}px` }}
+											>
+												<div className="flex items-end justify-center h-full px-0.5 py-1 gap-[1px]">
+													<AudioWaveformBars clipId={clip.clip_id} width={w} />
+												</div>
+											</div>,
+										];
+									})}
+								</div>
+							) : (
+								<div className="h-8 flex-1 border border-dashed border-zinc-900/50 bg-zinc-900/10 rounded flex items-center justify-center">
+									<span className="text-[7px] font-medium text-zinc-700">Audio</span>
+								</div>
+							)}
 						</div>
 					</div>
 				</div>

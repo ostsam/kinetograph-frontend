@@ -20,9 +20,11 @@ interface KinetographState {
 	selectedAssetId: string | null;
 	selectedClipId: string | null;
 	playheadMs: number;
+	renderUrl: string | null;
 
 	// Actions
 	setPhase: (phase: Phase) => void;
+	setRenderUrl: (url: string | null) => void;
 	setAssets: (assets: RawAsset[]) => void;
 	addAssets: (assets: RawAsset[]) => void;
 	renameAsset: (assetId: string, fileName: string) => void;
@@ -69,10 +71,12 @@ export const useKinetographStore = create<KinetographState>((set, get) => ({
 	selectedAssetId: null,
 	selectedClipId: null,
 	playheadMs: 0,
+	renderUrl: null,
 	undoStack: [],
 	redoStack: [],
 
 	setPhase: (phase) => set({ phase }),
+	setRenderUrl: (url) => set({ renderUrl: url }),
 	setAssets: (assets) =>
 		set((state) => ({
 			assets,

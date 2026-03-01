@@ -26,10 +26,18 @@ function resolveClipUrl(
 	clip: PaperEditClip,
 	assets: { file_name: string; file_path: string; stream_url: string }[],
 ): string | null {
+	// Try exact match first
 	const match =
 		assets.find((a) => a.file_name === clip.source_file) ??
 		assets.find((a) => a.file_path === clip.source_file);
 	if (match) return match.stream_url;
+
+	// Try matching by basename (source_file may be a full path)
+	const baseName = clip.source_file.split("/").pop() ?? clip.source_file;
+	const baseMatch = assets.find((a) => a.file_name === baseName);
+	if (baseMatch) return baseMatch.stream_url;
+
+	// Fallback: stream by absolute path
 	if (clip.source_file.startsWith("/")) {
 		return `/api/assets/stream?path=${encodeURIComponent(clip.source_file)}`;
 	}

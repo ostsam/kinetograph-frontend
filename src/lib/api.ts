@@ -10,6 +10,8 @@ import {
 	MasterIndexResponse,
 	RawAsset,
 	PaperEditClip,
+	EditRequest,
+	EditResponse,
 } from "@/types/kinetograph";
 
 const api = ky.create({
@@ -64,4 +66,18 @@ export const KinetographAPI = {
 	getMasterIndex: () => api.get("master-index").json<MasterIndexResponse>(),
 
 	getOutputs: () => api.get("output").json<OutputResponse>(),
+
+	// Post-pipeline edit
+	editPipeline: (request: EditRequest) =>
+		api.post("pipeline/edit", { json: request }).json<EditResponse>(),
+
+	deleteClip: (clipId: string) =>
+		api
+			.delete(`paper-edit/clips/${clipId}`)
+			.json<{ status: string; remaining_clips: number }>(),
+
+	addClip: (clip: Partial<PaperEditClip>) =>
+		api
+			.post("paper-edit/clips", { json: clip })
+			.json<{ status: string; total_clips: number }>(),
 };
