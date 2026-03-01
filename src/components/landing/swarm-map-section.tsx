@@ -1,62 +1,80 @@
+import {
+	swarmAgents,
+	swarmCapabilityCards,
+} from "@/components/landing/landing-content";
 import { CheckCircle2 } from "lucide-react";
-import { swarmAgents } from "@/components/landing/landing-content";
 
 const outcomes = [
-	"Structured paper edits for fast review cycles",
-	"Render-ready timeline logic with deterministic sequencing",
-	"Final video export ready for publication or handoff",
+	"Story-approved paper edits with clip rationale",
+	"Timeline assembly that stays consistent across revisions",
+	"Publish-ready masters and cutdowns from one source sequence",
 ];
 
 export function SwarmMapSection() {
 	return (
-		<section id="swarm" className="mt-16 grid gap-6 lg:grid-cols-[1.2fr_1fr]">
-			<div className="landing-appear relative overflow-hidden rounded-sm border border-zinc-800 bg-zinc-900/35 p-6">
-				<div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_35%,rgba(245,158,11,0.08),transparent_45%)]" />
-				<div className="landing-energy pointer-events-none absolute inset-x-6 top-1/2 h-px bg-gradient-to-r from-transparent via-zinc-700/70 to-transparent" />
+		<section id="swarm" className="mt-28 sm:mt-32">
+			<div className="grid gap-6 lg:grid-cols-[1.2fr_1fr]">
+				<div className="landing-appear overflow-hidden rounded-xl border border-white/[0.06] bg-[#111114] p-6 sm:p-8">
+					<p className="text-xs font-medium uppercase tracking-widest text-amber-400/80">
+						Editorial Engine
+					</p>
+					<h2 className="mt-3 text-2xl font-bold tracking-tight text-white sm:text-3xl">
+						Specialized agents handling repetitive post tasks in parallel.
+					</h2>
+					<p className="mt-4 max-w-2xl text-base leading-relaxed text-zinc-400">
+						Editors stay focused on story and pacing while the system handles
+						ingest logging, sequence assembly, finishing passes, and delivery prep.
+					</p>
 
-				<p className="text-[10px] font-mono uppercase tracking-[0.2em] text-zinc-500">
-					Hollywood Swarm
-				</p>
-				<h2 className="mt-2 text-2xl font-bold tracking-tight text-zinc-100 sm:text-3xl">
-					8 specialized agents working as one coordinated edit team.
-				</h2>
-				<p className="mt-3 max-w-2xl text-sm leading-relaxed text-zinc-400">
-					Each agent handles a specific stage in the pipeline so output quality
-					is consistent, and your team can focus on narrative choices instead of
-					repetitive execution.
-				</p>
+					<div className="mt-8 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+						{swarmAgents.map((agent, index) => (
+							<div
+								key={agent}
+								className="landing-reveal rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-zinc-400"
+								style={{ animationDelay: `${index * 70}ms` }}
+							>
+								{agent}
+							</div>
+						))}
+					</div>
 
-				<div className="mt-6 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-					{swarmAgents.map((agent, index) => (
-						<div
-							key={agent}
-							className="landing-reveal rounded-sm border border-zinc-700 bg-zinc-900 px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-zinc-300"
-							style={{ animationDelay: `${index * 70}ms` }}
-						>
-							{agent}
-						</div>
-					))}
+					<div className="mt-5 grid gap-3 sm:grid-cols-2">
+						{swarmCapabilityCards.map((item) => (
+							<div
+								key={item.title}
+								className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-4"
+							>
+								<div className="inline-flex items-center gap-2 text-xs font-semibold text-zinc-200">
+									<item.icon className="h-4 w-4 text-amber-400" />
+									{item.title}
+								</div>
+								<p className="mt-2 text-sm leading-relaxed text-zinc-500">
+									{item.description}
+								</p>
+							</div>
+						))}
+					</div>
 				</div>
-			</div>
 
-			<div className="landing-appear landing-appear-delay-2 rounded-sm border border-zinc-800 bg-[#101017] p-6">
-				<p className="text-[10px] font-mono uppercase tracking-[0.2em] text-zinc-500">
-					Outcome
-				</p>
-				<h3 className="mt-2 text-xl font-bold text-zinc-100">
-					Professional deliverables with less manual overhead.
-				</h3>
-				<ul className="mt-4 space-y-3">
-					{outcomes.map((item) => (
-						<li
-							key={item}
-							className="flex items-start gap-2.5 text-sm text-zinc-300"
-						>
-							<CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
-							<span>{item}</span>
-						</li>
-					))}
-				</ul>
+				<div className="landing-appear landing-appear-delay-2 flex flex-col justify-center rounded-xl border border-white/[0.06] bg-[#111114] p-6 sm:p-8">
+					<p className="text-xs font-medium uppercase tracking-widest text-amber-400/80">
+						What Editors Receive
+					</p>
+					<h3 className="mt-3 text-xl font-bold tracking-tight text-white sm:text-2xl">
+						Production outputs, not abstract automation.
+					</h3>
+					<ul className="mt-6 space-y-4">
+						{outcomes.map((item) => (
+							<li
+								key={item}
+								className="flex items-start gap-3 text-[15px] leading-relaxed text-zinc-300"
+							>
+								<CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" />
+								<span>{item}</span>
+							</li>
+						))}
+					</ul>
+				</div>
 			</div>
 		</section>
 	);

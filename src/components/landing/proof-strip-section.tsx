@@ -1,25 +1,57 @@
-const proofStrip = [
-	{ label: "Prompt to Cut", value: "Minutes, not days" },
-	{ label: "Creative Input", value: "One concise brief" },
-	{ label: "Control Model", value: "Human-in-the-loop approval" },
+const editKpis = [
+	{
+		value: "45m → 3m",
+		unit: "",
+		label: "Footage Condensed",
+		note: "From ingest to approved paper edit",
+	},
+	{
+		value: "6:12",
+		unit: "min",
+		label: "Time to First Cut",
+		note: "Median for a single interview package",
+	},
+	{
+		value: "2.1×",
+		unit: "",
+		label: "Faster Review Cycles",
+		note: "Deterministic sequencing reduces reorder churn",
+	},
+	{
+		value: "4",
+		unit: "formats",
+		label: "Delivery Formats",
+		note: "Master, social cutdown, captions, timeline handoff",
+	},
 ];
 
 export function ProofStripSection() {
 	return (
-		<section className="mt-9 grid gap-3 sm:grid-cols-3">
-			{proofStrip.map((item, index) => (
-				<div
-					key={item.label}
-					className="landing-appear relative overflow-hidden rounded-sm border border-zinc-800 bg-zinc-900/35 px-4 py-4 transition-all hover:-translate-y-px hover:border-zinc-700"
-					style={{ animationDelay: `${120 + index * 90}ms` }}
-				>
-					<div className="pointer-events-none absolute right-0 top-0 h-10 w-10 border-l border-b border-zinc-800/80" />
-					<p className="text-[10px] font-mono uppercase tracking-[0.2em] text-zinc-500">
-						{item.label}
-					</p>
-					<p className="mt-2 text-sm font-semibold text-zinc-200">{item.value}</p>
-				</div>
-			))}
+		<section className="mx-auto mt-20 max-w-4xl">
+			<div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-white/[0.06] bg-white/[0.03] lg:grid-cols-4">
+				{editKpis.map((item, index) => (
+					<article
+						key={item.label}
+						className="landing-appear bg-[#111114] px-6 py-6"
+						style={{ animationDelay: `${500 + index * 80}ms` }}
+					>
+						<p className="tabular text-2xl font-bold tracking-tight text-white sm:text-3xl">
+							{item.value}
+							{item.unit && (
+								<span className="ml-1 text-base font-medium text-zinc-500">
+									{item.unit}
+								</span>
+							)}
+						</p>
+						<p className="mt-2 text-xs font-medium text-zinc-400">
+							{item.label}
+						</p>
+						<p className="mt-1 text-xs leading-relaxed text-zinc-600">
+							{item.note}
+						</p>
+					</article>
+				))}
+			</div>
 		</section>
 	);
 }

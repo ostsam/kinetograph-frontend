@@ -66,75 +66,44 @@
 /* 🎬 Timeline Animations */
 @layer components {
   .clip-transition {
-    @apply transition-all duration-200 ease-out;
+    @apply transition-[transform,opacity] duration-200 ease-out;
   }
   
   .glass {
     @apply bg-background/80 backdrop-blur-md border border-white/10;
   }
 
-  .landing-scan {
-    animation: landing-scan 7s linear infinite;
-  }
-
-  .landing-bg-shift {
-    animation: landing-bg-shift 18s ease-in-out infinite alternate;
-  }
-
   .landing-appear {
     opacity: 0;
-    animation: landing-appear 720ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    animation: landing-appear 800ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
 
   .landing-appear-delay-1 {
-    animation-delay: 120ms;
+    animation-delay: 140ms;
   }
 
   .landing-appear-delay-2 {
-    animation-delay: 220ms;
+    animation-delay: 260ms;
   }
 
   .landing-appear-delay-3 {
-    animation-delay: 320ms;
+    animation-delay: 380ms;
   }
 
   .landing-appear-delay-4 {
-    animation-delay: 430ms;
-  }
-
-  .landing-float {
-    animation: landing-float 6s ease-in-out infinite;
-  }
-
-  .landing-energy {
-    animation: landing-energy 5.8s linear infinite;
-  }
-
-  .landing-glow {
-    animation: landing-glow 2.8s ease-in-out infinite;
+    animation-delay: 500ms;
   }
 
   .landing-reveal {
     opacity: 0;
-    animation: landing-reveal 550ms ease-out forwards;
-  }
-}
-
-@keyframes landing-bg-shift {
-  0% {
-    transform: scale(1) translate3d(0, 0, 0);
-    filter: saturate(1);
-  }
-  100% {
-    transform: scale(1.02) translate3d(-0.4%, -0.8%, 0);
-    filter: saturate(1.08);
+    animation: landing-reveal 600ms ease-out forwards;
   }
 }
 
 @keyframes landing-appear {
   from {
     opacity: 0;
-    transform: translateY(16px);
+    transform: translateY(20px);
   }
   to {
     opacity: 1;
@@ -142,62 +111,10 @@
   }
 }
 
-@keyframes landing-float {
-  0%, 100% {
-    transform: translateY(0) rotate(12deg);
-  }
-  50% {
-    transform: translateY(-8px) rotate(9deg);
-  }
-}
-
-@keyframes landing-energy {
-  0% {
-    transform: translateX(-120%);
-    opacity: 0;
-  }
-  16% {
-    opacity: 0.9;
-  }
-  55% {
-    opacity: 0.45;
-  }
-  100% {
-    transform: translateX(120%);
-    opacity: 0;
-  }
-}
-
-@keyframes landing-glow {
-  0%, 100% {
-    box-shadow: 0 0 0 rgba(245, 158, 11, 0);
-  }
-  50% {
-    box-shadow: 0 0 14px rgba(245, 158, 11, 0.45);
-  }
-}
-
-@keyframes landing-scan {
-  0% {
-    transform: translateX(0);
-    opacity: 0;
-  }
-  12% {
-    opacity: 0.9;
-  }
-  55% {
-    opacity: 0.55;
-  }
-  100% {
-    transform: translateX(240%);
-    opacity: 0;
-  }
-}
-
 @keyframes landing-reveal {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
@@ -206,12 +123,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .landing-scan,
-  .landing-bg-shift,
   .landing-appear,
-  .landing-float,
-  .landing-energy,
-  .landing-glow,
   .landing-reveal {
     animation: none !important;
     opacity: 1 !important;

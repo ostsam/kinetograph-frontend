@@ -1,15 +1,19 @@
 import type { LucideIcon } from "lucide-react";
 import {
-	Download,
-	Film,
-	ShieldCheck,
+	AudioLines,
+	Clapperboard,
+	FileText,
+	Scissors,
 	Sparkles,
+	Upload,
 } from "lucide-react";
 
-export interface FeatureCard {
-	eyebrow: string;
+export interface WalkthroughStage {
+	step: string;
+	phase: string;
 	title: string;
 	description: string;
+	output: string;
 	icon: LucideIcon;
 }
 
@@ -19,67 +23,95 @@ export interface WorkflowStep {
 	description: string;
 }
 
-export const featureCards: FeatureCard[] = [
+export const projectWalkthrough: WalkthroughStage[] = [
 	{
-		eyebrow: "Ingest + Index",
-		title: "Turn raw footage into searchable story material",
+		step: "01",
+		phase: "Ingest",
+		title: "Drop rushes and sync transcripts",
 		description:
-			"Drop A-roll and B-roll once. Kinetograph maps speech and visuals so every usable moment is ready for edit decisions.",
-		icon: Film,
+			"Upload A-roll, B-roll, and interviews once. Kinetograph tags speakers, scenes, and shot intent so material is instantly searchable.",
+		output: "Searchable bins + aligned transcript",
+		icon: Upload,
 	},
 	{
-		eyebrow: "Narrative Engine",
-		title: "Generate a first cut from a single creative brief",
+		step: "02",
+		phase: "Paper Edit",
+		title: "Build a story-first assembly",
 		description:
-			"The system drafts a structured paper edit with clear clip choices, pacing intent, and narrative flow before rendering starts.",
-		icon: Sparkles,
+			"Generate a paper edit with clip picks, beat timing, and rationale. Reorder or trim before any final render budget is spent.",
+		output: "Approved narrative sequence",
+		icon: FileText,
 	},
 	{
-		eyebrow: "Human Control",
-		title: "Approve the story before execution",
+		step: "03",
+		phase: "Timeline",
+		title: "Auto-assemble the first cut",
 		description:
-			"Review the sequence, reorder clips, remove weak shots, and greenlight only when the cut reflects your editorial intent.",
-		icon: ShieldCheck,
+			"The approved sequence compiles into timeline tracks with transitions, pacing-safe handles, and deterministic ordering.",
+		output: "Render-ready timeline",
+		icon: Scissors,
 	},
 	{
-		eyebrow: "Autonomous Finish",
-		title: "Deliver polished outputs in minutes",
+		step: "04",
+		phase: "Finish",
+		title: "Master audio, graphics, and exports",
 		description:
-			"After approval, Kinetograph handles synthesis, assembly, audio mastering, and final export without manual busywork.",
-		icon: Download,
+			"Run polish passes for loudness, titles, and format variants, then export your publish-ready master and cutdowns.",
+		output: "Master + social deliverables",
+		icon: AudioLines,
 	},
+];
+
+export const deliveryFormats = [
+	"4K 16:9 master",
+	"9:16 social cutdown",
+	"Caption package (.srt)",
+	"Timeline handoff (.edl)",
 ];
 
 export const workflow: WorkflowStep[] = [
 	{
 		step: "01",
-		title: "Drop media",
-		description: "Bring in your interview footage, scenes, and supporting B-roll.",
+		title: "Ingest footage",
+		description: "Bring in camera cards, interviews, and select libraries.",
 	},
 	{
 		step: "02",
-		title: "Write the brief",
-		description: "Describe the pace, tone, and outcome you want in plain language.",
+		title: "Direct the narrative",
+		description: "Define story beats, pacing, and audience outcome in one brief.",
 	},
 	{
 		step: "03",
-		title: "Approve the sequence",
-		description: "Refine the paper edit and confirm the narrative direction.",
+		title: "Approve the paper edit",
+		description: "Validate clip order and story logic before assembly locks in.",
 	},
 	{
 		step: "04",
-		title: "Ship the final cut",
-		description: "Export a production-ready video plus timeline artifacts.",
+		title: "Export masters",
+		description: "Render final formats and handoff assets for publishing.",
 	},
 ];
 
 export const swarmAgents = [
-	"Archivist",
-	"Scripter",
-	"Producer",
-	"Synthesizer",
-	"Director",
-	"Motion Grapher",
-	"Sound Engineer",
-	"QA Lead",
+	"Ingest Logger",
+	"Story Producer",
+	"Assembly Editor",
+	"Motion Titler",
+	"Audio Mixer",
+	"Color Pass",
+	"QC Checker",
+	"Delivery Manager",
+];
+
+export const swarmCapabilityCards = [
+	{
+		title: "Story Intelligence",
+		description: "Flags weak beats and pacing dips before review rounds begin.",
+		icon: Sparkles,
+	},
+	{
+		title: "Sequence Discipline",
+		description: "Keeps clip decisions deterministic across revisions and exports.",
+		icon: Clapperboard,
+	},
 ];

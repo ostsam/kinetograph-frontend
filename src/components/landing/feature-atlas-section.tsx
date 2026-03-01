@@ -1,51 +1,77 @@
-import { featureCards } from "@/components/landing/landing-content";
+import {
+	deliveryFormats,
+	projectWalkthrough,
+} from "@/components/landing/landing-content";
+import { CheckCircle2 } from "lucide-react";
 
 export function FeatureAtlasSection() {
 	return (
-		<section id="features" className="mt-16">
-			<div className="mb-6 flex items-end justify-between gap-4">
-				<div>
-					<p className="text-[10px] font-mono uppercase tracking-[0.2em] text-zinc-500">
-						What You Get
-					</p>
-					<h2 className="mt-2 max-w-4xl text-2xl font-bold tracking-tight text-zinc-100 sm:text-3xl">
-						Professional post-production features, streamlined into one flow.
-					</h2>
-				</div>
+		<section id="features" className="mt-28 sm:mt-32">
+			<div className="landing-appear mb-12 max-w-2xl">
+				<p className="text-xs font-medium uppercase tracking-widest text-amber-400/80">
+					How It Works
+				</p>
+				<h2 className="mt-3 text-3xl font-bold tracking-tight text-white sm:text-4xl">
+					One pipeline from rushes to final master.
+				</h2>
+				<p className="mt-4 text-base leading-relaxed text-zinc-400">
+					No feature shopping. This is the exact path your footage
+					takes — ingest, paper edit, assembly, then finished
+					deliverables.
+				</p>
 			</div>
 
-			<div className="grid gap-4 md:grid-cols-6 md:grid-rows-2">
-				{featureCards.map((feature, index) => (
+			<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+				{projectWalkthrough.map((stage, index) => (
 					<article
-						key={feature.title}
-						className={[
-							"landing-appear group relative overflow-hidden rounded-sm border border-zinc-800 bg-gradient-to-br from-zinc-900/65 to-zinc-950/80 p-5 transition-all hover:-translate-y-[2px] hover:border-zinc-700",
-							index === 0 ? "md:col-span-4 md:row-span-2" : "md:col-span-2",
-						].join(" ")}
-						style={{ animationDelay: `${index * 100}ms` }}
+						key={stage.step}
+						className="landing-appear group relative overflow-hidden rounded-xl border border-white/[0.06] bg-[#111114] p-6 transition-colors duration-200 hover:border-white/[0.12]"
+						style={{ animationDelay: `${index * 120}ms` }}
 					>
-						<div className="landing-float pointer-events-none absolute -right-12 -top-12 h-28 w-28 rounded-full border border-zinc-700/50" />
-						<div className="pointer-events-none absolute inset-x-5 bottom-0 h-px bg-gradient-to-r from-transparent via-zinc-700 to-transparent" />
-						<div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_10%_0%,rgba(245,158,11,0.1),transparent_35%)] opacity-70" />
+						<div className="mb-5 flex items-center justify-between">
+							<span className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-500/10 text-sm font-bold tabular text-amber-400">
+								{stage.step}
+							</span>
+							<stage.icon className="h-5 w-5 text-zinc-600 transition-colors duration-200 group-hover:text-zinc-400" />
+						</div>
 
-						<div className="flex items-start gap-4">
-							<div className="landing-glow mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-sm border border-zinc-700 bg-zinc-900 text-amber-400">
-								<feature.icon className="h-4 w-4" />
-							</div>
-							<div>
-								<p className="text-[10px] font-mono uppercase tracking-[0.18em] text-zinc-500">
-									{feature.eyebrow}
-								</p>
-								<h3 className="mt-1 text-base font-semibold text-zinc-100">
-									{feature.title}
-								</h3>
-								<p className="mt-2 text-sm leading-relaxed text-zinc-400">
-									{feature.description}
-								</p>
-							</div>
+						<p className="text-[11px] font-medium uppercase tracking-wider text-zinc-500">
+							{stage.phase}
+						</p>
+						<h3 className="mt-1.5 text-[15px] font-semibold leading-snug text-zinc-100">
+							{stage.title}
+						</h3>
+						<p className="mt-3 text-sm leading-relaxed text-zinc-500">
+							{stage.description}
+						</p>
+
+						<div className="mt-5 border-t border-white/[0.06] pt-4">
+							<p className="text-[10px] font-medium uppercase tracking-wider text-zinc-600">
+								Output
+							</p>
+							<p className="mt-1 text-sm font-medium text-zinc-300">
+								{stage.output}
+							</p>
 						</div>
 					</article>
 				))}
+			</div>
+
+			<div className="landing-appear landing-appear-delay-2 mt-6 overflow-hidden rounded-xl border border-white/[0.06] bg-[#111114] p-5 sm:p-6">
+				<p className="text-xs font-medium uppercase tracking-wider text-zinc-500">
+					Delivery Pack
+				</p>
+				<div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+					{deliveryFormats.map((format) => (
+						<div
+							key={format}
+							className="flex items-center gap-2.5 text-sm text-zinc-300"
+						>
+							<CheckCircle2 className="h-4 w-4 shrink-0 text-amber-400" />
+							<span>{format}</span>
+						</div>
+					))}
+				</div>
 			</div>
 		</section>
 	);
