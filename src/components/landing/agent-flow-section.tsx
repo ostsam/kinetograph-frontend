@@ -9,7 +9,6 @@ import {
 import {
 	Archive,
 	PenTool,
-	Clapperboard,
 	Download,
 	Film,
 	Captions,
@@ -385,16 +384,9 @@ function ErrorRouteIndicator() {
  
 export function AgentFlowSection() {
 	const sectionRef = useRef<HTMLElement>(null);
-	const isInView = useInView(sectionRef, { once: false, margin: "-100px" });
+	const isInView = useInView(sectionRef, { once: true, margin: "-100px" });
 	const [activeIndex, setActiveIndex] = useState(0);
-	const [isPlaying, setIsPlaying] = useState(false);
- 
-	// Start animation when section enters view
-	useEffect(() => {
-		if (isInView) {
-			setIsPlaying(true);
-		}
-	}, [isInView]);
+	const isPlaying = isInView;
  
 	// Auto-advance through agents
 	useEffect(() => {

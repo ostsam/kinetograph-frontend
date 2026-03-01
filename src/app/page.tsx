@@ -18,7 +18,6 @@ export default function Home() {
 				<HeroCommandSection />
 				<ProofStripSection />
 				<SocialProofSection />
-				<FeatureAtlasSection />
 				<AgentFlowSection />
 				<WorkflowSpineSection />
 				<SwarmMapSection />
