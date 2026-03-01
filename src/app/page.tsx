@@ -1,3 +1,4 @@
+import { AgentFlowSection } from "@/components/landing/agent-flow-section";
 import { ClosingCTASection } from "@/components/landing/closing-cta-section";
 import { FeatureAtlasSection } from "@/components/landing/feature-atlas-section";
 import { HeroCommandSection } from "@/components/landing/hero-command-section";
@@ -18,6 +19,7 @@ export default function Home() {
 				<ProofStripSection />
 				<SocialProofSection />
 				<FeatureAtlasSection />
+				<AgentFlowSection />
 				<WorkflowSpineSection />
 				<SwarmMapSection />
 				<ClosingCTASection />

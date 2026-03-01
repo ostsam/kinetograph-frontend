@@ -173,30 +173,33 @@ export function HeroCommandSection() {
 
 					{/* Timeline tracks */}
 					<div className="relative border-t border-white/[0.06] bg-[#0d0e12] px-3 py-3">
-						{/* Playhead — spans full height of ruler + tracks */}
+						{/* Playhead — spans full height of ruler + tracks, offset by track label width (2rem) */}
 						<div
 							className="pointer-events-none absolute top-3 bottom-3 z-10 w-px bg-amber-400"
-							style={{ left: `calc(0.75rem + ${playheadProgress * 100}%)` }}
+							style={{ left: `calc(0.75rem + 2rem + (100% - 0.75rem - 0.75rem - 2rem) * ${playheadProgress})` }}
 						>
 							<div
 								className="absolute -top-1 left-1/2 -translate-x-1/2 h-0 w-0 border-x-[4px] border-t-[6px] border-x-transparent border-t-amber-400"
 							/>
 						</div>
 
-						{/* Ruler */}
-						<div className="relative mb-2 h-5">
-							{rulerTicks.map((tick) => (
-								<div
-									key={tick}
-									className="absolute top-0 bottom-0"
-									style={{ left: `${(tick / TIMELINE_SECONDS) * 100}%` }}
-								>
-									<div className="h-full w-px bg-zinc-800" />
-									<span className="absolute left-1 top-0 text-[9px] font-mono tabular text-zinc-600">
-										{tick.toString().padStart(2, "0")}s
-									</span>
-								</div>
-							))}
+						{/* Ruler — aligned with track content area */}
+						<div className="flex mb-2 h-5">
+							<div className="w-8 shrink-0" />
+							<div className="relative flex-1">
+								{rulerTicks.map((tick) => (
+									<div
+										key={tick}
+										className="absolute top-0 bottom-0"
+										style={{ left: `${(tick / TIMELINE_SECONDS) * 100}%` }}
+									>
+										<div className="h-full w-px bg-zinc-800" />
+										<span className="absolute left-1 top-0 text-[9px] font-mono tabular text-zinc-600">
+											{tick.toString().padStart(2, "0")}s
+										</span>
+									</div>
+								))}
+							</div>
 						</div>
 
 						{/* Tracks */}
