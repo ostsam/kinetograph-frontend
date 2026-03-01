@@ -25,6 +25,8 @@ import {
 	Loader2,
 	Download,
 	Pencil,
+	Minus,
+	Plus,
 } from "lucide-react";
 import type { ChatMessage } from "@/types/chat";
 import { PHASE_DESCRIPTIONS, NODE_TO_AGENT } from "@/types/chat";
@@ -433,14 +435,25 @@ function ApprovalRequestMessage({ message }: { message: ChatMessage }) {
 	const [showRejectInput, setShowRejectInput] = useState(false);
 	const [rejectReason, setRejectReason] = useState("");
 	const [decided, setDecided] = useState(false);
+	const [expandedClipIds, setExpandedClipIds] = useState<Set<string>>(new Set());
 
-	const setPaperEdit = useKinetographStore((s) => s.setPaperEdit);
 	const paperEdit = useKinetographStore((s) => s.paperEdit);
 	const addSystemMessage = useChatStore((s) => s.addSystemMessage);
 	const setProcessing = useChatStore((s) => s.setProcessing);
 	const setPipelineActive = useChatStore((s) => s.setPipelineActive);
 
 	const clips = message.paperEdit?.clips || [];
+	const toggleClipExpanded = useCallback((clipId: string) => {
+		setExpandedClipIds((prev) => {
+			const next = new Set(prev);
+			if (next.has(clipId)) {
+				next.delete(clipId);
+			} else {
+				next.add(clipId);
+			}
+			return next;
+		});
+	}, []);
 
 	const handleApprove = async () => {
 		setIsApproving(true);
@@ -512,39 +525,61 @@ function ApprovalRequestMessage({ message }: { message: ChatMessage }) {
 								{message.paperEdit?.title || "Paper Edit"}
 							</div>
 							<div className="max-h-32 overflow-y-auto custom-scrollbar space-y-0.5">
-								{clips.slice(0, 8).map((clip, i) => (
-									<div
-										key={clip.clip_id}
-										className="flex items-center gap-2 px-2 py-1 rounded bg-zinc-900/50 text-[9px]"
-									>
-										<span className="text-zinc-600 w-4 text-right">
-											{i + 1}.
-										</span>
-										<span
+								{clips.map((clip, i) => {
+									const isExpanded = expandedClipIds.has(clip.clip_id);
+									return (
+										<div
+											key={clip.clip_id}
 											className={cn(
-												"px-1 py-0.5 rounded text-[8px] font-medium",
-												clip.clip_type === "a-roll"
-													? "bg-blue-500/20 text-blue-400"
-													: clip.clip_type === "synth"
-														? "bg-purple-500/20 text-purple-400"
-														: "bg-emerald-500/20 text-emerald-400",
+												"flex gap-2 px-2 py-1 rounded bg-zinc-900/50 text-[9px]",
+												isExpanded ? "items-start" : "items-center",
 											)}
 										>
-											{clip.clip_type}
-										</span>
-										<span className="text-zinc-400 truncate flex-1">
-											{clip.description}
-										</span>
-										<span className="text-zinc-600 tabular-nums">
-											{((clip.out_ms - clip.in_ms) / 1000).toFixed(1)}s
-										</span>
-									</div>
-								))}
-								{clips.length > 8 && (
-									<div className="text-[9px] text-zinc-600 text-center py-1">
-										+ {clips.length - 8} more clips
-									</div>
-								)}
+											<span className="text-zinc-600 w-4 text-right">
+												{i + 1}.
+											</span>
+											<span
+												className={cn(
+													"px-1 py-0.5 rounded text-[8px] font-medium",
+													clip.clip_type === "a-roll"
+														? "bg-blue-500/20 text-blue-400"
+														: clip.clip_type === "synth"
+															? "bg-purple-500/20 text-purple-400"
+															: "bg-emerald-500/20 text-emerald-400",
+												)}
+											>
+												{clip.clip_type}
+											</span>
+											<span
+												className={cn(
+													"text-zinc-400 flex-1 min-w-0",
+													isExpanded
+														? "whitespace-normal break-words leading-relaxed"
+														: "truncate",
+												)}
+											>
+												{clip.description}
+											</span>
+											<button
+												type="button"
+												onClick={() => toggleClipExpanded(clip.clip_id)}
+												className="h-4 w-4 shrink-0 rounded border border-zinc-700 text-zinc-500 hover:text-zinc-300 hover:border-zinc-500 transition-colors flex items-center justify-center"
+											>
+												{isExpanded ? (
+													<Minus className="h-2.5 w-2.5" />
+												) : (
+													<Plus className="h-2.5 w-2.5" />
+												)}
+												<span className="sr-only">
+													{isExpanded ? "Collapse clip description" : "Expand clip description"}
+												</span>
+											</button>
+											<span className="text-zinc-600 tabular-nums shrink-0">
+												{((clip.out_ms - clip.in_ms) / 1000).toFixed(1)}s
+											</span>
+										</div>
+									);
+								})}
 							</div>
 						</div>
 

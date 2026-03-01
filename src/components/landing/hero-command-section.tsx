@@ -139,6 +139,20 @@ export function HeroCommandSection() {
 
 					{/* Preview area */}
 					<div className="relative aspect-[2.35/1] overflow-hidden bg-[#0a0b0f]">
+						<video
+							className="absolute inset-0 h-full w-full object-cover"
+							autoPlay
+							loop
+							muted
+							playsInline
+							preload="metadata"
+							aria-label="Kinetograph timeline preview"
+						>
+							<source
+								src="/5a18a6e6-015b-4652-b0f5-d6c479495235.mp4"
+								type="video/mp4"
+							/>
+						</video>
 
 						{/* Letterbox bars */}
 						<div className="pointer-events-none absolute inset-x-0 top-0 h-[10%] bg-black/80" />
