@@ -6,9 +6,9 @@ import {
 	PipelineStatus,
 	PipelineError,
 	PaperEditClip,
-} from "@/types/kinetograph";
+} from "@/types/montazh";
 
-interface KinetographState {
+interface MontazhState {
 	// Core State
 	phase: Phase;
 	assets: RawAsset[];
@@ -62,7 +62,7 @@ function createClipId() {
 	return `clip-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-export const useKinetographStore = create<KinetographState>((set, get) => ({
+export const useMontazhStore = create<MontazhState>((set, get) => ({
 	phase: Phase.IDLE,
 	assets: [],
 	paperEdit: null,
@@ -165,7 +165,10 @@ export const useKinetographStore = create<KinetographState>((set, get) => ({
 					clips: newClips,
 					total_duration_ms: totalDurationMs,
 				},
-				undoStack: [structuredClone(state.paperEdit), ...state.undoStack].slice(0, 50),
+				undoStack: [structuredClone(state.paperEdit), ...state.undoStack].slice(
+					0,
+					50,
+				),
 				redoStack: [],
 			};
 		}),
@@ -179,7 +182,10 @@ export const useKinetographStore = create<KinetographState>((set, get) => ({
 				.filter((c): c is PaperEditClip => !!c);
 			return {
 				paperEdit: { ...state.paperEdit, clips: newClips },
-				undoStack: [structuredClone(state.paperEdit), ...state.undoStack].slice(0, 50),
+				undoStack: [structuredClone(state.paperEdit), ...state.undoStack].slice(
+					0,
+					50,
+				),
 				redoStack: [],
 			};
 		}),
@@ -202,7 +208,10 @@ export const useKinetographStore = create<KinetographState>((set, get) => ({
 				},
 				selectedClipId:
 					state.selectedClipId === clipId ? null : state.selectedClipId,
-				undoStack: [structuredClone(state.paperEdit), ...state.undoStack].slice(0, 50),
+				undoStack: [structuredClone(state.paperEdit), ...state.undoStack].slice(
+					0,
+					50,
+				),
 				redoStack: [],
 			};
 		}),
@@ -248,7 +257,10 @@ export const useKinetographStore = create<KinetographState>((set, get) => ({
 					music_prompt: current.paperEdit?.music_prompt,
 				},
 				undoStack: current.paperEdit
-					? [structuredClone(current.paperEdit), ...current.undoStack].slice(0, 50)
+					? [structuredClone(current.paperEdit), ...current.undoStack].slice(
+							0,
+							50,
+						)
 					: current.undoStack,
 				redoStack: [],
 			};

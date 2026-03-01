@@ -1,8 +1,8 @@
 "use client";
 
 import { useRef, useCallback, useState, useEffect } from "react";
-import { PaperEditClip } from "@/types/kinetograph";
-import { useKinetographStore } from "@/store/use-kinetograph-store";
+import { PaperEditClip } from "@/types/montazh";
+import { useMontazhStore } from "@/store/use-montazh-store";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical, Scissors, Volume2 } from "lucide-react";
@@ -17,7 +17,10 @@ interface TimelineClipProps {
 	onTrim?: (edge: "in" | "out", deltaMs: number) => void;
 }
 
-function generateClipThumbnail(streamUrl: string, seekTime: number): Promise<string> {
+function generateClipThumbnail(
+	streamUrl: string,
+	seekTime: number,
+): Promise<string> {
 	return new Promise((resolve) => {
 		const video = document.createElement("video");
 		video.preload = "auto";
@@ -57,7 +60,7 @@ export function TimelineClip({
 	onDelete,
 	onTrim,
 }: TimelineClipProps) {
-	const assets = useKinetographStore((s) => s.assets);
+	const assets = useMontazhStore((s) => s.assets);
 	const [thumbnailUrl, setThumbnailUrl] = useState<string>("");
 
 	const {
@@ -75,7 +78,8 @@ export function TimelineClip({
 	// Generate thumbnail for this clip
 	useEffect(() => {
 		const asset = assets.find(
-			(a) => a.file_name === clip.source_file || a.file_path === clip.source_file,
+			(a) =>
+				a.file_name === clip.source_file || a.file_path === clip.source_file,
 		);
 		if (!asset) return;
 
@@ -180,9 +184,7 @@ export function TimelineClip({
 					<span className={isSelected ? "text-blue-400/80" : ""}>
 						{(clip.in_ms / 1000).toFixed(1)}s
 					</span>
-					<span className="text-zinc-600">
-						{(duration / 1000).toFixed(1)}s
-					</span>
+					<span className="text-zinc-600">{(duration / 1000).toFixed(1)}s</span>
 					<span>{(clip.out_ms / 1000).toFixed(1)}s</span>
 				</div>
 			</div>

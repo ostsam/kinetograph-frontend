@@ -6,7 +6,7 @@ import type {
 	AgentActivity,
 	EditType,
 } from "@/types/chat";
-import type { Phase, PaperEdit, PipelineError } from "@/types/kinetograph";
+import type { Phase, PaperEdit, PipelineError } from "@/types/montazh";
 
 // ─── Unique ID generator ──────────────────────────────────────────────────────
 

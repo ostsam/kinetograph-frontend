@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import { useKinetographStore } from "@/store/use-kinetograph-store";
-import { KinetographAPI } from "@/lib/api";
+import { useMontazhStore } from "@/store/use-montazh-store";
+import { MontazhAPI } from "@/lib/api";
 import { createLocalAsset, isVideoFile } from "@/lib/local-asset";
 import { Loader2, Plus, Film, FolderOpen, Trash2, Search } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -11,24 +11,29 @@ export function AssetDropzone() {
 	const [isDragging, setIsDragging] = useState(false);
 	const [isUploading, setIsUploading] = useState(false);
 	const [searchQuery, setSearchQuery] = useState("");
-	const [pendingDeleteAssetId, setPendingDeleteAssetId] = useState<string | null>(null);
+	const [pendingDeleteAssetId, setPendingDeleteAssetId] = useState<
+		string | null
+	>(null);
 	const [editingAssetId, setEditingAssetId] = useState<string | null>(null);
 	const [editingFileName, setEditingFileName] = useState("");
 	const [pendingFiles, setPendingFiles] = useState<File[] | null>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
 
-	const setAssets = useKinetographStore((s) => s.setAssets);
-	const addAssets = useKinetographStore((s) => s.addAssets);
-	const renameAsset = useKinetographStore((s) => s.renameAsset);
-	const deleteAsset = useKinetographStore((s) => s.deleteAsset);
-	const assets = useKinetographStore((s) => s.assets);
-	const selectedAssetId = useKinetographStore((s) => s.selectedAssetId);
-	const selectedClipId = useKinetographStore((s) => s.selectedClipId);
-	const setSelectedAsset = useKinetographStore((s) => s.setSelectedAsset);
-	const pendingDeleteAsset = assets.find((a) => a.id === pendingDeleteAssetId) ?? null;
+	const setAssets = useMontazhStore((s) => s.setAssets);
+	const addAssets = useMontazhStore((s) => s.addAssets);
+	const renameAsset = useMontazhStore((s) => s.renameAsset);
+	const deleteAsset = useMontazhStore((s) => s.deleteAsset);
+	const assets = useMontazhStore((s) => s.assets);
+	const selectedAssetId = useMontazhStore((s) => s.selectedAssetId);
+	const selectedClipId = useMontazhStore((s) => s.selectedClipId);
+	const setSelectedAsset = useMontazhStore((s) => s.setSelectedAsset);
+	const pendingDeleteAsset =
+		assets.find((a) => a.id === pendingDeleteAssetId) ?? null;
 
 	const filteredAssets = searchQuery.trim()
-		? assets.filter((a) => a.file_name.toLowerCase().includes(searchQuery.toLowerCase()))
+		? assets.filter((a) =>
+				a.file_name.toLowerCase().includes(searchQuery.toLowerCase()),
+			)
 		: assets;
 
 	const handleUpload = useCallback(
@@ -38,12 +43,14 @@ export function AssetDropzone() {
 			setIsUploading(true);
 			try {
 				for (const file of videoFiles) {
-					await KinetographAPI.uploadAsset(file, assetType);
+					await MontazhAPI.uploadAsset(file, assetType);
 				}
-				const updated = await KinetographAPI.getAssets();
+				const updated = await MontazhAPI.getAssets();
 				setAssets(updated.assets);
 			} catch {
-				const localAssets = await Promise.all(videoFiles.map((file) => createLocalAsset(file)));
+				const localAssets = await Promise.all(
+					videoFiles.map((file) => createLocalAsset(file)),
+				);
 				addAssets(localAssets);
 			} finally {
 				setIsUploading(false);
@@ -52,14 +59,11 @@ export function AssetDropzone() {
 		[addAssets, setAssets],
 	);
 
-	const promptAndUpload = useCallback(
-		(files: File[]) => {
-			const videoFiles = files.filter(isVideoFile);
-			if (videoFiles.length === 0) return;
-			setPendingFiles(videoFiles);
-		},
-		[],
-	);
+	const promptAndUpload = useCallback((files: File[]) => {
+		const videoFiles = files.filter(isVideoFile);
+		if (videoFiles.length === 0) return;
+		setPendingFiles(videoFiles);
+	}, []);
 
 	const requestDeleteAsset = useCallback((assetId: string) => {
 		setPendingDeleteAssetId(assetId);
@@ -127,8 +131,17 @@ export function AssetDropzone() {
 				>
 					<Trash2 className="h-3 w-3" />
 				</button>
-				<input type="file" ref={fileInputRef} className="hidden" multiple accept="video/*"
-					onChange={(e) => { promptAndUpload(Array.from(e.target.files || [])); e.target.value = ""; }} />
+				<input
+					type="file"
+					ref={fileInputRef}
+					className="hidden"
+					multiple
+					accept="video/*"
+					onChange={(e) => {
+						promptAndUpload(Array.from(e.target.files || []));
+						e.target.value = "";
+					}}
+				/>
 			</div>
 
 			{/* Search */}
@@ -145,7 +158,10 @@ export function AssetDropzone() {
 
 			{/* Asset list */}
 			<div
-				onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+				onDragOver={(e) => {
+					e.preventDefault();
+					setIsDragging(true);
+				}}
 				onDragLeave={() => setIsDragging(false)}
 				onDrop={onDrop}
 				className={`relative flex-1 rounded border transition-colors overflow-hidden flex flex-col
@@ -163,11 +179,18 @@ export function AssetDropzone() {
 									draggable={editingAssetId !== asset.id}
 									onClick={() => setSelectedAsset(asset.id)}
 									onDragStart={(event) => {
-										const dragEvent = event as unknown as React.DragEvent<HTMLDivElement>;
+										const dragEvent =
+											event as unknown as React.DragEvent<HTMLDivElement>;
 										setSelectedAsset(asset.id);
 										dragEvent.dataTransfer.effectAllowed = "copy";
-										dragEvent.dataTransfer.setData("application/x-kinetograph-asset-id", asset.id);
-										dragEvent.dataTransfer.setData("text/plain", asset.file_name);
+										dragEvent.dataTransfer.setData(
+											"application/x-Montazh-asset-id",
+											asset.id,
+										);
+										dragEvent.dataTransfer.setData(
+											"text/plain",
+											asset.file_name,
+										);
 									}}
 									className={`group relative flex items-center gap-2.5 px-2 py-1.5 cursor-pointer transition-colors border-b border-zinc-800/30 ${
 										selectedAssetId === asset.id
@@ -202,30 +225,45 @@ export function AssetDropzone() {
 												onClick={(e) => e.stopPropagation()}
 												onBlur={() => commitRenameAsset(asset.id)}
 												onKeyDown={(e) => {
-													if (e.key === "Enter") { e.preventDefault(); commitRenameAsset(asset.id); }
-													if (e.key === "Escape") { setEditingAssetId(null); setEditingFileName(""); }
+													if (e.key === "Enter") {
+														e.preventDefault();
+														commitRenameAsset(asset.id);
+													}
+													if (e.key === "Escape") {
+														setEditingAssetId(null);
+														setEditingFileName("");
+													}
 												}}
 												className="w-full bg-black/50 border border-blue-500/40 rounded px-1 py-0.5 text-[10px] text-zinc-100 outline-none"
 											/>
 										) : (
 											<p
-												onDoubleClick={(e) => { e.stopPropagation(); startRenameAsset(asset.id, asset.file_name); }}
+												onDoubleClick={(e) => {
+													e.stopPropagation();
+													startRenameAsset(asset.id, asset.file_name);
+												}}
 												className="truncate text-[10px] font-medium text-zinc-300 group-hover:text-zinc-100 transition-colors"
 											>
 												{asset.file_name}
 											</p>
 										)}
 										<div className="flex items-center gap-1.5 text-[8px] font-mono text-zinc-600">
-											<span className={`px-1 rounded ${
-												asset.asset_type === "a-roll"
-													? "bg-emerald-500/15 text-emerald-400"
-													: asset.asset_type === "b-roll-synth"
-													? "bg-purple-500/15 text-purple-400"
-													: "bg-blue-500/15 text-blue-400"
-											}`}>
-												{asset.asset_type === "b-roll-synth" ? "synth" : asset.asset_type}
+											<span
+												className={`px-1 rounded ${
+													asset.asset_type === "a-roll"
+														? "bg-emerald-500/15 text-emerald-400"
+														: asset.asset_type === "b-roll-synth"
+															? "bg-purple-500/15 text-purple-400"
+															: "bg-blue-500/15 text-blue-400"
+												}`}
+											>
+												{asset.asset_type === "b-roll-synth"
+													? "synth"
+													: asset.asset_type}
 											</span>
-											<span>{asset.width}×{asset.height}</span>
+											<span>
+												{asset.width}×{asset.height}
+											</span>
 											<span className="opacity-30">·</span>
 											<span>{asset.fps}fps</span>
 											<span className="opacity-30">·</span>
@@ -244,7 +282,9 @@ export function AssetDropzone() {
 							<div className="flex flex-col items-center justify-center h-32 text-center px-6">
 								<FolderOpen className="h-6 w-6 text-zinc-800 mb-2" />
 								<p className="text-[10px] text-zinc-600">
-									{searchQuery ? "No matching media" : "Drop media files here to import"}
+									{searchQuery
+										? "No matching media"
+										: "Drop media files here to import"}
 								</p>
 							</div>
 						)}
@@ -254,16 +294,24 @@ export function AssetDropzone() {
 				{isUploading && (
 					<div className="absolute inset-0 bg-black/40 backdrop-blur-[1px] flex flex-col items-center justify-center gap-2">
 						<Loader2 className="h-5 w-5 animate-spin text-blue-500" />
-						<span className="text-[9px] font-medium text-zinc-400">Importing media…</span>
+						<span className="text-[9px] font-medium text-zinc-400">
+							Importing media…
+						</span>
 					</div>
 				)}
 
 				{pendingDeleteAsset && (
 					<div className="absolute inset-0 z-30 bg-black/70 backdrop-blur-[2px] flex items-center justify-center p-4">
 						<div className="w-full max-w-xs rounded border border-zinc-700 bg-zinc-900 p-4 shadow-xl">
-							<h3 className="text-xs font-semibold text-zinc-200">Delete media?</h3>
+							<h3 className="text-xs font-semibold text-zinc-200">
+								Delete media?
+							</h3>
 							<p className="mt-1.5 text-[10px] text-zinc-400 leading-relaxed break-all">
-								Remove <span className="text-zinc-200">{pendingDeleteAsset.file_name}</span> from the project.
+								Remove{" "}
+								<span className="text-zinc-200">
+									{pendingDeleteAsset.file_name}
+								</span>{" "}
+								from the project.
 							</p>
 							<div className="mt-3 flex items-center justify-end gap-2">
 								<button
@@ -287,24 +335,43 @@ export function AssetDropzone() {
 				{pendingFiles && (
 					<div className="absolute inset-0 z-30 bg-black/70 backdrop-blur-[2px] flex items-center justify-center p-4">
 						<div className="w-full max-w-xs rounded border border-zinc-700 bg-zinc-900 p-4 shadow-xl">
-							<h3 className="text-xs font-semibold text-zinc-200">Import as…</h3>
+							<h3 className="text-xs font-semibold text-zinc-200">
+								Import as…
+							</h3>
 							<p className="mt-1.5 text-[10px] text-zinc-400 leading-relaxed">
-								{pendingFiles.length} file{pendingFiles.length !== 1 ? "s" : ""} selected. Choose the media type:
+								{pendingFiles.length} file{pendingFiles.length !== 1 ? "s" : ""}{" "}
+								selected. Choose the media type:
 							</p>
 							<div className="mt-3 flex flex-col gap-2">
 								<button
-									onClick={() => { const f = pendingFiles; setPendingFiles(null); handleUpload(f, "a-roll"); }}
+									onClick={() => {
+										const f = pendingFiles;
+										setPendingFiles(null);
+										handleUpload(f, "a-roll");
+									}}
 									className="w-full rounded border border-emerald-700/50 bg-emerald-600/10 px-3 py-2 text-left hover:bg-emerald-600/20 transition-colors"
 								>
-									<span className="text-[11px] font-semibold text-emerald-300">A-Roll</span>
-									<span className="block text-[9px] text-zinc-500 mt-0.5">Primary footage — interviews, main content</span>
+									<span className="text-[11px] font-semibold text-emerald-300">
+										A-Roll
+									</span>
+									<span className="block text-[9px] text-zinc-500 mt-0.5">
+										Primary footage — interviews, main content
+									</span>
 								</button>
 								<button
-									onClick={() => { const f = pendingFiles; setPendingFiles(null); handleUpload(f, "b-roll"); }}
+									onClick={() => {
+										const f = pendingFiles;
+										setPendingFiles(null);
+										handleUpload(f, "b-roll");
+									}}
 									className="w-full rounded border border-blue-700/50 bg-blue-600/10 px-3 py-2 text-left hover:bg-blue-600/20 transition-colors"
 								>
-									<span className="text-[11px] font-semibold text-blue-300">B-Roll</span>
-									<span className="block text-[9px] text-zinc-500 mt-0.5">Supplementary footage — cutaways, overlays</span>
+									<span className="text-[11px] font-semibold text-blue-300">
+										B-Roll
+									</span>
+									<span className="block text-[9px] text-zinc-500 mt-0.5">
+										Supplementary footage — cutaways, overlays
+									</span>
 								</button>
 							</div>
 							<div className="mt-2 flex justify-end">
@@ -322,8 +389,13 @@ export function AssetDropzone() {
 
 			{/* Stats footer */}
 			<div className="flex items-center justify-between text-[9px] font-mono text-zinc-600 px-1">
-				<span>{assets.length} clip{assets.length !== 1 ? "s" : ""}</span>
-				<span>{(assets.reduce((s, a) => s + a.duration_ms, 0) / 1000).toFixed(1)}s total</span>
+				<span>
+					{assets.length} clip{assets.length !== 1 ? "s" : ""}
+				</span>
+				<span>
+					{(assets.reduce((s, a) => s + a.duration_ms, 0) / 1000).toFixed(1)}s
+					total
+				</span>
 			</div>
 		</div>
 	);

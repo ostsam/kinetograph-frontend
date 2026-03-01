@@ -1,4 +1,4 @@
-import { RawAsset } from "@/types/kinetograph";
+import { RawAsset } from "@/types/montazh";
 
 const DEFAULT_DURATION_MS = 1000;
 const DEFAULT_WIDTH = 1920;
@@ -14,7 +14,10 @@ interface VideoMetadata {
 }
 
 function createLocalId() {
-	if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+	if (
+		typeof crypto !== "undefined" &&
+		typeof crypto.randomUUID === "function"
+	) {
 		return `local-${crypto.randomUUID()}`;
 	}
 	return `local-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -30,7 +33,10 @@ function inferCodec(file: File) {
 	return codec || "unknown";
 }
 
-function generateThumbnail(video: HTMLVideoElement, seekTime: number): Promise<string> {
+function generateThumbnail(
+	video: HTMLVideoElement,
+	seekTime: number,
+): Promise<string> {
 	return new Promise((resolve) => {
 		const canvas = document.createElement("canvas");
 		const w = video.videoWidth || 320;
@@ -70,8 +76,11 @@ function loadMetadata(streamUrl: string): Promise<VideoMetadata> {
 		};
 
 		video.onloadeddata = async () => {
-			const durationSeconds = Number.isFinite(video.duration) ? video.duration : 1;
-			const hasAudio = (video as any).mozHasAudio === true ||
+			const durationSeconds = Number.isFinite(video.duration)
+				? video.duration
+				: 1;
+			const hasAudio =
+				(video as any).mozHasAudio === true ||
 				(typeof (video as any).webkitAudioDecodedByteCount === "number" &&
 					(video as any).webkitAudioDecodedByteCount > 0);
 
@@ -85,7 +94,10 @@ function loadMetadata(streamUrl: string): Promise<VideoMetadata> {
 			}
 
 			finish({
-				durationMs: Math.max(DEFAULT_DURATION_MS, Math.round(durationSeconds * 1000)),
+				durationMs: Math.max(
+					DEFAULT_DURATION_MS,
+					Math.round(durationSeconds * 1000),
+				),
 				width: video.videoWidth || DEFAULT_WIDTH,
 				height: video.videoHeight || DEFAULT_HEIGHT,
 				hasAudio,

@@ -1,8 +1,8 @@
 "use client";
 
 import { useRef, useCallback, useEffect, useState } from "react";
-import { useKinetographStore } from "@/store/use-kinetograph-store";
-import type { PaperEditClip, TransitionType } from "@/types/kinetograph";
+import { useMontazhStore } from "@/store/use-montazh-store";
+import type { PaperEditClip, TransitionType } from "@/types/montazh";
 
 export type PlaybackState = "idle" | "playing" | "paused";
 
@@ -71,7 +71,10 @@ function loadVideoSource(
 ): Promise<boolean> {
 	return new Promise((resolve) => {
 		const url = resolveClipUrl(clip, assets);
-		if (!url) { resolve(false); return; }
+		if (!url) {
+			resolve(false);
+			return;
+		}
 
 		const onReady = () => {
 			video.removeEventListener("canplay", onReady);
@@ -124,28 +127,38 @@ export function useVideoPlayer() {
 	const [currentTimeDisplay, setCurrentTimeDisplay] = useState(0);
 	const [volume, setVolumeState] = useState(1);
 	const [playbackRate, setPlaybackRateState] = useState(1);
-	const [transitionState, setTransitionState] = useState<TransitionState>(EMPTY_TRANSITION);
+	const [transitionState, setTransitionState] =
+		useState<TransitionState>(EMPTY_TRANSITION);
 
-	const assets = useKinetographStore((s) => s.assets);
-	const paperEdit = useKinetographStore((s) => s.paperEdit);
-	const selectedClipId = useKinetographStore((s) => s.selectedClipId);
-	const setPlayhead = useKinetographStore((s) => s.setPlayhead);
-	const setSelectedClip = useKinetographStore((s) => s.setSelectedClip);
+	const assets = useMontazhStore((s) => s.assets);
+	const paperEdit = useMontazhStore((s) => s.paperEdit);
+	const selectedClipId = useMontazhStore((s) => s.selectedClipId);
+	const setPlayhead = useMontazhStore((s) => s.setPlayhead);
+	const setSelectedClip = useMontazhStore((s) => s.setSelectedClip);
 
 	const clips = paperEdit?.clips ?? [];
 
-	useEffect(() => { clipsRef.current = clips; }, [clips]);
+	useEffect(() => {
+		clipsRef.current = clips;
+	}, [clips]);
 
-	const totalDurationMs = clips.reduce((sum, c) => sum + (c.out_ms - c.in_ms), 0);
+	const totalDurationMs = clips.reduce(
+		(sum, c) => sum + (c.out_ms - c.in_ms),
+		0,
+	);
 
 	/** Get the currently-active video element */
 	const getActiveVideo = useCallback(() => {
-		return activeSlotRef.current === "A" ? videoARef.current : videoBRef.current;
+		return activeSlotRef.current === "A"
+			? videoARef.current
+			: videoBRef.current;
 	}, []);
 
 	/** Get the inactive (standby) video element */
 	const getStandbyVideo = useCallback(() => {
-		return activeSlotRef.current === "A" ? videoBRef.current : videoARef.current;
+		return activeSlotRef.current === "A"
+			? videoBRef.current
+			: videoARef.current;
 	}, []);
 
 	/** Swap active/standby */
@@ -244,7 +257,8 @@ export function useVideoPlayer() {
 			(c) => c.clip_id === activeClipIdRef.current,
 		);
 		if (!activeClip) {
-			if (isPlayingRef.current) rafRef.current = requestAnimationFrame(tickPlayhead);
+			if (isPlayingRef.current)
+				rafRef.current = requestAnimationFrame(tickPlayhead);
 			return;
 		}
 
@@ -263,9 +277,8 @@ export function useVideoPlayer() {
 				const nextUrl = resolveClipUrl(nextClip, assets);
 				if (nextUrl) {
 					const transType = nextClip.transition ?? "cut";
-					const transDur = transType !== "cut"
-						? (nextClip.transition_duration_ms ?? 500)
-						: 0;
+					const transDur =
+						transType !== "cut" ? (nextClip.transition_duration_ms ?? 500) : 0;
 
 					// Load next clip into the standby video element
 					const standby = getStandbyVideo();
@@ -307,7 +320,17 @@ export function useVideoPlayer() {
 		if (isPlayingRef.current) {
 			rafRef.current = requestAnimationFrame(tickPlayhead);
 		}
-	}, [assets, setPlayhead, setSelectedClip, getActiveVideo, getStandbyVideo, swapSlots, loadClipInto, volume, playbackRate]);
+	}, [
+		assets,
+		setPlayhead,
+		setSelectedClip,
+		getActiveVideo,
+		getStandbyVideo,
+		swapSlots,
+		loadClipInto,
+		volume,
+		playbackRate,
+	]);
 
 	const play = useCallback(async () => {
 		const video = getActiveVideo();
@@ -317,7 +340,7 @@ export function useVideoPlayer() {
 		transitionRef.current = null;
 		setTransitionState(EMPTY_TRANSITION);
 
-		const currentMs = useKinetographStore.getState().playheadMs;
+		const currentMs = useMontazhStore.getState().playheadMs;
 		const target = resolvePlayheadToClip(currentMs, clips);
 
 		if (!target) {
@@ -345,7 +368,16 @@ export function useVideoPlayer() {
 		} catch {
 			/* autoplay blocked */
 		}
-	}, [clips, loadClipInto, tickPlayhead, setSelectedClip, setPlayhead, volume, playbackRate, getActiveVideo]);
+	}, [
+		clips,
+		loadClipInto,
+		tickPlayhead,
+		setSelectedClip,
+		setPlayhead,
+		volume,
+		playbackRate,
+		getActiveVideo,
+	]);
 
 	const pause = useCallback(() => {
 		const active = getActiveVideo();
@@ -405,7 +437,17 @@ export function useVideoPlayer() {
 				video.play().catch(() => {});
 			}
 		},
-		[clips, totalDurationMs, loadClipInto, setPlayhead, setSelectedClip, volume, playbackRate, getActiveVideo, getStandbyVideo],
+		[
+			clips,
+			totalDurationMs,
+			loadClipInto,
+			setPlayhead,
+			setSelectedClip,
+			volume,
+			playbackRate,
+			getActiveVideo,
+			getStandbyVideo,
+		],
 	);
 
 	const setVolume = useCallback((v: number) => {

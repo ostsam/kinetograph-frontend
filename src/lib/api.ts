@@ -12,7 +12,7 @@ import {
 	PaperEditClip,
 	EditRequest,
 	EditResponse,
-} from "@/types/kinetograph";
+} from "@/types/montazh";
 
 const api = ky.create({
 	prefixUrl: "/api",
@@ -20,7 +20,7 @@ const api = ky.create({
 	retry: { limit: 2, methods: ["get"] },
 });
 
-export const KinetographAPI = {
+export const MontazhAPI = {
 	getHealth: () =>
 		api.get("health").json<{ status: string; version: string }>(),
 	getConfig: () => api.get("config").json<Record<string, string | number>>(),

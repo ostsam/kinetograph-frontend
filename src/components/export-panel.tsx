@@ -1,9 +1,9 @@
 "use client";
 
-import { useKinetographStore } from "@/store/use-kinetograph-store";
-import { KinetographAPI } from "@/lib/api";
+import { useMontazhStore } from "@/store/use-montazh-store";
+import { MontazhAPI } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import type { OutputFile } from "@/types/kinetograph";
+import type { OutputFile } from "@/types/montazh";
 import { AnimatePresence, motion } from "framer-motion";
 import {
 	Download,
@@ -68,17 +68,53 @@ function formatTC(ms: number): string {
 }
 
 const RESOLUTION_PRESETS = [
-	{ label: "Full HD", width: 1920, height: 1080, aspect: "16:9", orientation: "horizontal" as const },
-	{ label: "HD", width: 1280, height: 720, aspect: "16:9", orientation: "horizontal" as const },
-	{ label: "SD", width: 854, height: 480, aspect: "16:9", orientation: "horizontal" as const },
-	{ label: "Full HD", width: 1080, height: 1920, aspect: "9:16", orientation: "vertical" as const },
-	{ label: "HD", width: 720, height: 1280, aspect: "9:16", orientation: "vertical" as const },
-	{ label: "SD", width: 480, height: 854, aspect: "9:16", orientation: "vertical" as const },
+	{
+		label: "Full HD",
+		width: 1920,
+		height: 1080,
+		aspect: "16:9",
+		orientation: "horizontal" as const,
+	},
+	{
+		label: "HD",
+		width: 1280,
+		height: 720,
+		aspect: "16:9",
+		orientation: "horizontal" as const,
+	},
+	{
+		label: "SD",
+		width: 854,
+		height: 480,
+		aspect: "16:9",
+		orientation: "horizontal" as const,
+	},
+	{
+		label: "Full HD",
+		width: 1080,
+		height: 1920,
+		aspect: "9:16",
+		orientation: "vertical" as const,
+	},
+	{
+		label: "HD",
+		width: 720,
+		height: 1280,
+		aspect: "9:16",
+		orientation: "vertical" as const,
+	},
+	{
+		label: "SD",
+		width: 480,
+		height: 854,
+		aspect: "9:16",
+		orientation: "vertical" as const,
+	},
 ];
 
 export function ExportPanel({ onClose }: ExportPanelProps) {
-	const paperEdit = useKinetographStore((s) => s.paperEdit);
-	const assets = useKinetographStore((s) => s.assets);
+	const paperEdit = useMontazhStore((s) => s.paperEdit);
+	const assets = useMontazhStore((s) => s.assets);
 
 	const [activeTab, setActiveTab] = useState<"save" | "render">("save");
 	const [files, setFiles] = useState<OutputFile[]>([]);
@@ -86,7 +122,9 @@ export function ExportPanel({ onClose }: ExportPanelProps) {
 	const [error, setError] = useState<string | null>(null);
 	const [saveStatus, setSaveStatus] = useState<string | null>(null);
 	const [selectedResolution, setSelectedResolution] = useState(0);
-	const [renderQuality, setRenderQuality] = useState<"high" | "medium" | "low">("high");
+	const [renderQuality, setRenderQuality] = useState<"high" | "medium" | "low">(
+		"high",
+	);
 	const [isRendering, setIsRendering] = useState(false);
 
 	const sequenceDurationMs =
@@ -96,12 +134,10 @@ export function ExportPanel({ onClose }: ExportPanelProps) {
 		setLoading(true);
 		setError(null);
 		try {
-			const res = await KinetographAPI.getOutputs();
+			const res = await MontazhAPI.getOutputs();
 			setFiles(res.files ?? []);
 		} catch (err) {
-			setError(
-				err instanceof Error ? err.message : "Failed to fetch outputs",
-			);
+			setError(err instanceof Error ? err.message : "Failed to fetch outputs");
 		} finally {
 			setLoading(false);
 		}
@@ -115,7 +151,7 @@ export function ExportPanel({ onClose }: ExportPanelProps) {
 		if (!paperEdit) return;
 		setSaveStatus("saving");
 		try {
-			await KinetographAPI.savePaperEdit(paperEdit);
+			await MontazhAPI.savePaperEdit(paperEdit);
 			setSaveStatus("saved");
 			setTimeout(() => setSaveStatus(null), 2000);
 		} catch {
@@ -173,7 +209,7 @@ export function ExportPanel({ onClose }: ExportPanelProps) {
 		const preset = RESOLUTION_PRESETS[selectedResolution];
 		try {
 			// TODO: integrate with backend render API
-			// await KinetographAPI.startRender({ width: preset.width, height: preset.height, quality: renderQuality });
+			// await MontazhAPI.startRender({ width: preset.width, height: preset.height, quality: renderQuality });
 			void preset;
 			await new Promise((resolve) => setTimeout(resolve, 1500));
 			await fetchOutputs();
@@ -206,9 +242,7 @@ export function ExportPanel({ onClose }: ExportPanelProps) {
 					<div className="flex items-center justify-between border-b border-zinc-800 px-5 py-3.5">
 						<div className="flex items-center gap-2">
 							<Film className="h-4 w-4 text-blue-500" />
-							<h2 className="text-sm font-semibold text-zinc-100">
-								Project
-							</h2>
+							<h2 className="text-sm font-semibold text-zinc-100">Project</h2>
 						</div>
 						<button
 							type="button"
@@ -327,32 +361,72 @@ export function ExportPanel({ onClose }: ExportPanelProps) {
 							<div className="flex flex-col gap-4">
 								{/* Resolution Presets */}
 								<div className="flex flex-col gap-2">
-									<label className="text-[10px] font-medium text-zinc-400">Resolution</label>
+									<label className="text-[10px] font-medium text-zinc-400">
+										Resolution
+									</label>
 									<div className="flex flex-col gap-1.5">
-										<span className="text-[9px] text-zinc-500 font-medium flex items-center gap-1.5"><Monitor className="h-3 w-3" /> Horizontal (16:9)</span>
+										<span className="text-[9px] text-zinc-500 font-medium flex items-center gap-1.5">
+											<Monitor className="h-3 w-3" /> Horizontal (16:9)
+										</span>
 										<div className="grid grid-cols-3 gap-1.5">
-											{RESOLUTION_PRESETS.filter((p) => p.orientation === "horizontal").map((preset) => {
+											{RESOLUTION_PRESETS.filter(
+												(p) => p.orientation === "horizontal",
+											).map((preset) => {
 												const idx = RESOLUTION_PRESETS.indexOf(preset);
 												return (
-													<button key={idx} onClick={() => setSelectedResolution(idx)} className={cn("flex flex-col items-center gap-1 rounded border p-2 transition-all", selectedResolution === idx ? "border-blue-500 bg-blue-500/10 text-blue-400" : "border-zinc-800 bg-zinc-800/30 text-zinc-400 hover:border-zinc-700")}>
-														<div className="w-10 h-6 rounded bg-zinc-700/50 border border-zinc-600/30 flex items-center justify-center"><Monitor className="h-3 w-3 opacity-50" /></div>
-														<span className="text-[9px] font-semibold">{preset.width}\u00d7{preset.height}</span>
-														<span className="text-[7px] text-zinc-500">{preset.label}</span>
+													<button
+														key={idx}
+														onClick={() => setSelectedResolution(idx)}
+														className={cn(
+															"flex flex-col items-center gap-1 rounded border p-2 transition-all",
+															selectedResolution === idx
+																? "border-blue-500 bg-blue-500/10 text-blue-400"
+																: "border-zinc-800 bg-zinc-800/30 text-zinc-400 hover:border-zinc-700",
+														)}
+													>
+														<div className="w-10 h-6 rounded bg-zinc-700/50 border border-zinc-600/30 flex items-center justify-center">
+															<Monitor className="h-3 w-3 opacity-50" />
+														</div>
+														<span className="text-[9px] font-semibold">
+															{preset.width}\u00d7{preset.height}
+														</span>
+														<span className="text-[7px] text-zinc-500">
+															{preset.label}
+														</span>
 													</button>
 												);
 											})}
 										</div>
 									</div>
 									<div className="flex flex-col gap-1.5">
-										<span className="text-[9px] text-zinc-500 font-medium flex items-center gap-1.5"><Smartphone className="h-3 w-3" /> Vertical (9:16)</span>
+										<span className="text-[9px] text-zinc-500 font-medium flex items-center gap-1.5">
+											<Smartphone className="h-3 w-3" /> Vertical (9:16)
+										</span>
 										<div className="grid grid-cols-3 gap-1.5">
-											{RESOLUTION_PRESETS.filter((p) => p.orientation === "vertical").map((preset) => {
+											{RESOLUTION_PRESETS.filter(
+												(p) => p.orientation === "vertical",
+											).map((preset) => {
 												const idx = RESOLUTION_PRESETS.indexOf(preset);
 												return (
-													<button key={idx} onClick={() => setSelectedResolution(idx)} className={cn("flex flex-col items-center gap-1 rounded border p-2 transition-all", selectedResolution === idx ? "border-blue-500 bg-blue-500/10 text-blue-400" : "border-zinc-800 bg-zinc-800/30 text-zinc-400 hover:border-zinc-700")}>
-														<div className="w-5 h-8 rounded bg-zinc-700/50 border border-zinc-600/30 flex items-center justify-center"><Smartphone className="h-3 w-3 opacity-50" /></div>
-														<span className="text-[9px] font-semibold">{preset.width}\u00d7{preset.height}</span>
-														<span className="text-[7px] text-zinc-500">{preset.label}</span>
+													<button
+														key={idx}
+														onClick={() => setSelectedResolution(idx)}
+														className={cn(
+															"flex flex-col items-center gap-1 rounded border p-2 transition-all",
+															selectedResolution === idx
+																? "border-blue-500 bg-blue-500/10 text-blue-400"
+																: "border-zinc-800 bg-zinc-800/30 text-zinc-400 hover:border-zinc-700",
+														)}
+													>
+														<div className="w-5 h-8 rounded bg-zinc-700/50 border border-zinc-600/30 flex items-center justify-center">
+															<Smartphone className="h-3 w-3 opacity-50" />
+														</div>
+														<span className="text-[9px] font-semibold">
+															{preset.width}\u00d7{preset.height}
+														</span>
+														<span className="text-[7px] text-zinc-500">
+															{preset.label}
+														</span>
 													</button>
 												);
 											})}
@@ -362,10 +436,23 @@ export function ExportPanel({ onClose }: ExportPanelProps) {
 
 								{/* Quality */}
 								<div className="flex flex-col gap-1.5">
-									<label className="text-[10px] font-medium text-zinc-400">Quality</label>
+									<label className="text-[10px] font-medium text-zinc-400">
+										Quality
+									</label>
 									<div className="flex gap-px bg-zinc-800 p-0.5 rounded">
 										{(["high", "medium", "low"] as const).map((q) => (
-											<button key={q} onClick={() => setRenderQuality(q)} className={cn("flex-1 py-1.5 text-[9px] font-medium rounded capitalize transition-all", renderQuality === q ? "bg-zinc-600 text-white" : "hover:bg-zinc-700 text-zinc-500")}>{q}</button>
+											<button
+												key={q}
+												onClick={() => setRenderQuality(q)}
+												className={cn(
+													"flex-1 py-1.5 text-[9px] font-medium rounded capitalize transition-all",
+													renderQuality === q
+														? "bg-zinc-600 text-white"
+														: "hover:bg-zinc-700 text-zinc-500",
+												)}
+											>
+												{q}
+											</button>
 										))}
 									</div>
 								</div>
@@ -374,13 +461,26 @@ export function ExportPanel({ onClose }: ExportPanelProps) {
 								<div className="flex items-center justify-between text-[9px] text-zinc-500 bg-zinc-800/30 rounded px-3 py-2 font-mono">
 									<span>MP4 (H.264)</span>
 									<span>30 FPS</span>
-									<span>{RESOLUTION_PRESETS[selectedResolution].width}\u00d7{RESOLUTION_PRESETS[selectedResolution].height}</span>
+									<span>
+										{RESOLUTION_PRESETS[selectedResolution].width}\u00d7
+										{RESOLUTION_PRESETS[selectedResolution].height}
+									</span>
 									<span className="capitalize">{renderQuality}</span>
 								</div>
 
 								{/* Render */}
-								<button onClick={handleStartRender} disabled={isRendering || !paperEdit || paperEdit.clips.length === 0} className="flex items-center justify-center gap-2 rounded bg-blue-600 px-4 py-2.5 text-xs font-semibold text-white hover:bg-blue-500 transition-colors disabled:opacity-50">
-									{isRendering ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileVideo className="h-3.5 w-3.5" />}
+								<button
+									onClick={handleStartRender}
+									disabled={
+										isRendering || !paperEdit || paperEdit.clips.length === 0
+									}
+									className="flex items-center justify-center gap-2 rounded bg-blue-600 px-4 py-2.5 text-xs font-semibold text-white hover:bg-blue-500 transition-colors disabled:opacity-50"
+								>
+									{isRendering ? (
+										<Loader2 className="h-3.5 w-3.5 animate-spin" />
+									) : (
+										<FileVideo className="h-3.5 w-3.5" />
+									)}
 									{isRendering ? "Rendering\u2026" : "Start Render"}
 								</button>
 
@@ -396,10 +496,7 @@ export function ExportPanel({ onClose }: ExportPanelProps) {
 										className="rounded p-1 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300 transition-colors disabled:opacity-40"
 									>
 										<RefreshCw
-											className={cn(
-												"h-3 w-3",
-												loading && "animate-spin",
-											)}
+											className={cn("h-3 w-3", loading && "animate-spin")}
 										/>
 									</button>
 								</div>
@@ -421,9 +518,7 @@ export function ExportPanel({ onClose }: ExportPanelProps) {
 								{!loading && !error && files.length === 0 && (
 									<div className="flex flex-col items-center gap-2 py-6 text-zinc-500">
 										<HardDrive className="h-5 w-5" />
-										<span className="text-xs">
-											No rendered outputs yet.
-										</span>
+										<span className="text-xs">No rendered outputs yet.</span>
 									</div>
 								)}
 

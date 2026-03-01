@@ -7,11 +7,10 @@ import {
 	useCallback,
 	useMemo,
 	type KeyboardEvent,
-	type FormEvent,
 } from "react";
 import { useChatStore } from "@/store/use-chat-store";
-import { useKinetographStore } from "@/store/use-kinetograph-store";
-import { KinetographAPI } from "@/lib/api";
+import { useMontazhStore } from "@/store/use-montazh-store";
+import { MontazhAPI } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import {
 	Send,
@@ -30,8 +29,7 @@ import {
 	Plus,
 } from "lucide-react";
 import type { ChatMessage } from "@/types/chat";
-import { PHASE_DESCRIPTIONS, NODE_TO_AGENT } from "@/types/chat";
-import type { Phase, PaperEdit } from "@/types/kinetograph";
+import type { Phase } from "@/types/montazh";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 //  CHAT PANEL — Cursor-like AI interface for video creation
@@ -52,9 +50,9 @@ export function ChatPanel({ onClose }: ChatPanelProps) {
 	const setPipelineActive = useChatStore((s) => s.setPipelineActive);
 	const setOpen = useChatStore((s) => s.setOpen);
 
-	const phase = useKinetographStore((s) => s.phase);
-	const paperEdit = useKinetographStore((s) => s.paperEdit);
-	const setPaperEdit = useKinetographStore((s) => s.setPaperEdit);
+	const phase = useMontazhStore((s) => s.phase);
+	const paperEdit = useMontazhStore((s) => s.paperEdit);
+	const setPaperEdit = useMontazhStore((s) => s.setPaperEdit);
 
 	const [input, setInput] = useState("");
 	const scrollRef = useRef<HTMLDivElement>(null);
@@ -89,7 +87,7 @@ export function ChatPanel({ onClose }: ChatPanelProps) {
 			setProcessing(true);
 			setPipelineActive(true);
 			try {
-				const res = await KinetographAPI.editPipeline({
+				const res = await MontazhAPI.editPipeline({
 					instruction: text,
 				});
 				addSystemMessage(res.message || "✏️ Edit submitted — processing...");
@@ -111,7 +109,7 @@ export function ChatPanel({ onClose }: ChatPanelProps) {
 		);
 
 		try {
-			const res = await KinetographAPI.runPipeline({
+			const res = await MontazhAPI.runPipeline({
 				prompt: text,
 				project_name:
 					text
@@ -262,7 +260,7 @@ function WelcomeScreen() {
 				<Sparkles className="h-5 w-5 text-purple-400" />
 			</div>
 			<h3 className="text-[13px] font-semibold text-zinc-200 mb-1">
-				Kinetograph AI
+				Montazh AI
 			</h3>
 			<p className="text-[11px] text-zinc-500 max-w-[240px] mb-5 leading-relaxed">
 				Describe the video you want to create. I&apos;ll orchestrate 8 AI agents
@@ -286,7 +284,7 @@ function SuggestionButton({ text }: { text: string }) {
 	const addSystemMessage = useChatStore((s) => s.addSystemMessage);
 	const setProcessing = useChatStore((s) => s.setProcessing);
 	const setPipelineActive = useChatStore((s) => s.setPipelineActive);
-	const setPaperEdit = useKinetographStore((s) => s.setPaperEdit);
+	const setPaperEdit = useMontazhStore((s) => s.setPaperEdit);
 
 	const handleClick = async () => {
 		addUserMessage(text);
@@ -297,7 +295,7 @@ function SuggestionButton({ text }: { text: string }) {
 		);
 
 		try {
-			const res = await KinetographAPI.runPipeline({
+			const res = await MontazhAPI.runPipeline({
 				prompt: text,
 				project_name:
 					text
@@ -465,7 +463,7 @@ function ApprovalRequestMessage({ message }: { message: ChatMessage }) {
 		new Set(),
 	);
 
-	const paperEdit = useKinetographStore((s) => s.paperEdit);
+	const paperEdit = useMontazhStore((s) => s.paperEdit);
 	const addSystemMessage = useChatStore((s) => s.addSystemMessage);
 	const setProcessing = useChatStore((s) => s.setProcessing);
 	const setPipelineActive = useChatStore((s) => s.setPipelineActive);
@@ -506,7 +504,7 @@ function ApprovalRequestMessage({ message }: { message: ChatMessage }) {
 		try {
 			// Use the current paperEdit from store (user may have edited it in timeline)
 			const editToApprove = paperEdit || message.paperEdit;
-			await KinetographAPI.approvePipeline({
+			await MontazhAPI.approvePipeline({
 				action: "approve",
 				paper_edit: editToApprove || undefined,
 			});
@@ -528,7 +526,7 @@ function ApprovalRequestMessage({ message }: { message: ChatMessage }) {
 		setPipelineActive(true);
 		addSystemMessage(`🔄 Requesting revision: "${rejectReason}"`);
 		try {
-			await KinetographAPI.approvePipeline({
+			await MontazhAPI.approvePipeline({
 				action: "reject",
 				reason: rejectReason,
 			});
@@ -749,7 +747,7 @@ function ErrorMessage({
 	errors,
 }: {
 	content: string;
-	errors?: import("@/types/kinetograph").PipelineError[];
+	errors?: import("@/types/montazh").PipelineError[];
 }) {
 	return (
 		<div className="flex justify-start">

@@ -2,12 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import {
-	ArrowRight,
-	Play,
-	SkipBack,
-	SkipForward,
-} from "lucide-react";
+import { ArrowRight, Play, SkipBack, SkipForward } from "lucide-react";
 
 const TIMELINE_SECONDS = 45;
 const CYCLE_DURATION_MS = 8000;
@@ -53,15 +48,11 @@ const timelineRows: TimelineRow[] = [
 	},
 	{
 		track: "A1",
-		clips: [
-			{ label: "DIALOG", start: 0, duration: 35, tone: "emerald" },
-		],
+		clips: [{ label: "DIALOG", start: 0, duration: 35, tone: "emerald" }],
 	},
 	{
 		track: "A2",
-		clips: [
-			{ label: "MUSIC-BED", start: 4, duration: 41, tone: "emerald" },
-		],
+		clips: [{ label: "MUSIC-BED", start: 4, duration: 41, tone: "emerald" }],
 	},
 ];
 
@@ -97,8 +88,8 @@ export function HeroCommandSection() {
 					Autonomous post&#8209;production from rushes to master.
 				</h1>
 				<p className="landing-appear landing-appear-delay-1 mx-auto mt-6 max-w-xl text-pretty text-base leading-relaxed text-zinc-400 sm:text-lg">
-					AI agents handle ingest, paper edits, assembly, and delivery
-					while you stay focused on story and pacing.
+					AI agents handle ingest, paper edits, assembly, and delivery while you
+					stay focused on story and pacing.
 				</p>
 				<div className="landing-appear landing-appear-delay-2 mt-8 flex flex-wrap items-center justify-center gap-3">
 					<Link
@@ -133,7 +124,8 @@ export function HeroCommandSection() {
 							</span>
 						</div>
 						<div className="tabular text-xs font-mono text-amber-400/80">
-							00:00:{playheadSec.toString().padStart(2, "0")}:{playheadFrames.toString().padStart(2, "0")}
+							00:00:{playheadSec.toString().padStart(2, "0")}:
+							{playheadFrames.toString().padStart(2, "0")}
 						</div>
 					</div>
 
@@ -146,7 +138,7 @@ export function HeroCommandSection() {
 							muted
 							playsInline
 							preload="metadata"
-							aria-label="Kinetograph timeline preview"
+							aria-label="Montazh timeline preview"
 						>
 							<source
 								src="/5a18a6e6-015b-4652-b0f5-d6c479495235.mp4"
@@ -190,11 +182,11 @@ export function HeroCommandSection() {
 						{/* Playhead — spans full height of ruler + tracks, offset by track label width (2rem) */}
 						<div
 							className="pointer-events-none absolute top-3 bottom-3 z-10 w-px bg-amber-400"
-							style={{ left: `calc(0.75rem + 2rem + (100% - 0.75rem - 0.75rem - 2rem) * ${playheadProgress})` }}
+							style={{
+								left: `calc(0.75rem + 2rem + (100% - 0.75rem - 0.75rem - 2rem) * ${playheadProgress})`,
+							}}
 						>
-							<div
-								className="absolute -top-1 left-1/2 -translate-x-1/2 h-0 w-0 border-x-[4px] border-t-[6px] border-x-transparent border-t-amber-400"
-							/>
+							<div className="absolute -top-1 left-1/2 -translate-x-1/2 h-0 w-0 border-x-[4px] border-t-[6px] border-x-transparent border-t-amber-400" />
 						</div>
 
 						{/* Ruler — aligned with track content area */}
@@ -219,10 +211,7 @@ export function HeroCommandSection() {
 						{/* Tracks */}
 						<div className="space-y-1">
 							{timelineRows.map((row) => (
-								<div
-									key={row.track}
-									className="relative flex h-9 items-center"
-								>
+								<div key={row.track} className="relative flex h-9 items-center">
 									<div className="w-8 shrink-0 text-[10px] font-mono text-zinc-600">
 										{row.track}
 									</div>

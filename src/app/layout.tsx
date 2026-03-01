@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-	title: "Kinetograph",
+	title: "Montazh",
 	description:
 		"Autonomous post-production for turning raw footage into an approved final cut.",
 };

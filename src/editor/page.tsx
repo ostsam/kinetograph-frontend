@@ -7,9 +7,9 @@ import {
 	Separator,
 	PanelImperativeHandle,
 } from "react-resizable-panels";
-import { useKinetographWS } from "@/hooks/use-kinetograph-ws";
-import { useKinetographStore } from "@/store/use-kinetograph-store";
-import { KinetographAPI } from "@/lib/api";
+import { useMontazhWS } from "@/hooks/use-montazh-ws";
+import { useMontazhStore } from "@/store/use-montazh-store";
+import { MontazhAPI } from "@/lib/api";
 import { PipelineBanner } from "@/components/pipeline-banner";
 import { AssetDropzone } from "@/components/asset-dropzone";
 import { CreativePrompt } from "@/components/creative-prompt";
@@ -34,29 +34,29 @@ function cn(...inputs: ClassValue[]) {
 }
 
 export default function EditorPage() {
-	useKinetographWS();
+	useMontazhWS();
 	const router = useRouter();
 	const [isSidebarCollapsed, setSidebarCollapsed] = useState(false);
 	const leftPanelRef = useRef<PanelImperativeHandle>(null);
 
-	const setAssets = useKinetographStore((s) => s.setAssets);
-	const setPipelineStatus = useKinetographStore((s) => s.setPipelineStatus);
-	const assets = useKinetographStore((s) => s.assets);
-	const selectedAssetId = useKinetographStore((s) => s.selectedAssetId);
+	const setAssets = useMontazhStore((s) => s.setAssets);
+	const setPipelineStatus = useMontazhStore((s) => s.setPipelineStatus);
+	const assets = useMontazhStore((s) => s.assets);
+	const selectedAssetId = useMontazhStore((s) => s.selectedAssetId);
 	const selectedAsset =
 		assets.find((asset) => asset.id === selectedAssetId) ?? null;
 
 	useEffect(() => {
-		KinetographAPI.getAssets()
+		MontazhAPI.getAssets()
 			.then((res) => setAssets(res.assets))
 			.catch(() => undefined);
 
-		KinetographAPI.getStatus()
+		MontazhAPI.getStatus()
 			.then((res) => {
 				setPipelineStatus(res);
 				if (res.phase === "awaiting_approval" || res.phase === "scripted") {
-					KinetographAPI.getPaperEdit().then(
-						useKinetographStore.getState().setPaperEdit,
+					MontazhAPI.getPaperEdit().then(
+						useMontazhStore.getState().setPaperEdit,
 					);
 				}
 			})
@@ -88,7 +88,7 @@ export default function EditorPage() {
 							className="text-xs font-bold tracking-[0.2em] uppercase text-zinc-100 group-hover:text-amber-500 transition-colors"
 							onClick={() => router.push("/")}
 						>
-							Kinetograph
+							Montazh
 						</span>
 					</div>
 

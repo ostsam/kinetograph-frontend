@@ -1,10 +1,10 @@
-# Kinetograph Frontend API Integration Playbook
+# Montazh Frontend API Integration Playbook
 
 This document is the implementation guide for moving the current editor from mixed mock/live behavior to fully API-backed behavior, and deploying the frontend on Vercel.
 
 ## Scope
 
-- Frontend repo: `kinetograph-frontend` (Next.js 16 App Router)
+- Frontend repo: `Montazh-frontend` (Next.js 16 App Router)
 - Backend contract source: `API.md` (FastAPI REST + WebSocket)
 - Goal: no UX regression while replacing local mock actions with backend persistence
 
@@ -12,14 +12,14 @@ This document is the implementation guide for moving the current editor from mix
 
 ### Live backend integration already in use
 
-- `GET /api/assets` (initial assets load) via `KinetographAPI.getAssets()`
-- `GET /api/pipeline/status` (phase bootstrap) via `KinetographAPI.getStatus()`
-- `GET /api/paper-edit` (bootstrap + ws scripted states) via `KinetographAPI.getPaperEdit()`
-- `POST /api/assets/upload` (upload attempt) via `KinetographAPI.uploadAsset()`
-- `POST /api/pipeline/run` (creative prompt submit) via `KinetographAPI.runPipeline()`
-- `POST /api/pipeline/approve` (commit sequence) via `KinetographAPI.approvePipeline()`
-- `POST /api/paper-edit/reorder` (timeline drag reorder sync) via `KinetographAPI.reorderClips()`
-- WebSocket `/ws` with reconnect + ping/pong via `useKinetographWS`
+- `GET /api/assets` (initial assets load) via `MontazhAPI.getAssets()`
+- `GET /api/pipeline/status` (phase bootstrap) via `MontazhAPI.getStatus()`
+- `GET /api/paper-edit` (bootstrap + ws scripted states) via `MontazhAPI.getPaperEdit()`
+- `POST /api/assets/upload` (upload attempt) via `MontazhAPI.uploadAsset()`
+- `POST /api/pipeline/run` (creative prompt submit) via `MontazhAPI.runPipeline()`
+- `POST /api/pipeline/approve` (commit sequence) via `MontazhAPI.approvePipeline()`
+- `POST /api/paper-edit/reorder` (timeline drag reorder sync) via `MontazhAPI.reorderClips()`
+- WebSocket `/ws` with reconnect + ping/pong via `useMontazhWS`
 
 ### Local/mock behavior currently still present
 
@@ -60,18 +60,21 @@ Use this checklist with the backend team before final switch-over.
 ### Potential contract gaps to resolve explicitly
 
 1. Asset rename endpoint
+
 - Current UI supports rename, but API.md does not define asset rename.
 - Decision needed:
   - Add endpoint (recommended): `PATCH /api/assets/{asset_id}` with `{ file_name }`, or
   - Make assets immutable and disable rename UI in production.
 
 2. Asset delete endpoint
+
 - Current UI supports delete with confirmation, but API.md does not define asset delete.
 - Decision needed:
   - Add endpoint (recommended): `DELETE /api/assets/{asset_id}`, or
   - Remove/disable asset delete UI in production.
 
 3. Upload response shape
+
 - Frontend type currently expects `RawAsset` from upload call, but then refreshes by `getAssets()` anyway.
 - API.md sample upload response includes `status` wrapper fields.
 - Recommendation: treat upload response as non-authoritative and keep `getAssets()` refresh as source of truth.
@@ -81,86 +84,99 @@ Use this checklist with the backend team before final switch-over.
 ### 1) API base URL + proxy strategy
 
 Current:
+
 - `src/lib/api.ts` uses `prefixUrl: '/api'`
 - `next.config.ts` rewrites `/api/:path*` to `http://localhost:8080/api/:path*`
 
 Target:
+
 - Keep browser calls relative (`/api`) to avoid CORS exposure on the client.
 - Make rewrite destination environment-driven for local, preview, and production.
 
 Recommended `next.config.ts` pattern:
 
 ```ts
-import type { NextConfig } from 'next';
+import type { NextConfig } from "next";
 
-const apiOrigin = process.env.KINETOGRAPH_API_ORIGIN;
+const apiOrigin = process.env.Montazh_API_ORIGIN;
 
 const nextConfig: NextConfig = {
-  async rewrites() {
-    if (!apiOrigin) return [];
-    return [
-      {
-        source: '/api/:path*',
-        destination: `${apiOrigin}/api/:path*`,
-      },
-    ];
-  },
+	async rewrites() {
+		if (!apiOrigin) return [];
+		return [
+			{
+				source: "/api/:path*",
+				destination: `${apiOrigin}/api/:path*`,
+			},
+		];
+	},
 };
 
 export default nextConfig;
 ```
 
 Notes:
-- `KINETOGRAPH_API_ORIGIN` is server-side only (do not prefix with `NEXT_PUBLIC_`).
+
+- `Montazh_API_ORIGIN` is server-side only (do not prefix with `NEXT_PUBLIC_`).
 - Example values:
   - Local: `http://localhost:8080`
-  - Prod: `https://api.kinetograph.yourdomain.com`
+  - Prod: `https://api.Montazh.yourdomain.com`
 
 ### 2) WebSocket URL strategy
 
 Current:
-- `src/hooks/use-kinetograph-ws.ts` builds URL from `window.location.protocol` + `NEXT_PUBLIC_WS_HOST` fallback `localhost:3000`
+
+- `src/hooks/use-Montazh-ws.ts` builds URL from `window.location.protocol` + `NEXT_PUBLIC_WS_HOST` fallback `localhost:3000`
 
 Issue:
+
 - On Vercel, frontend host and backend ws host are usually different.
 
 Target:
-- Prefer a full explicit env var: `NEXT_PUBLIC_WS_URL` (e.g. `wss://api.kinetograph.yourdomain.com/ws`).
+
+- Prefer a full explicit env var: `NEXT_PUBLIC_WS_URL` (e.g. `wss://api.Montazh.yourdomain.com/ws`).
 - Keep `NEXT_PUBLIC_WS_HOST` as backward-compatible fallback if desired.
 
 Recommended logic:
 
 ```ts
-const socketUrl = process.env.NEXT_PUBLIC_WS_URL
-  ?? `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${process.env.NEXT_PUBLIC_WS_HOST ?? window.location.host}/ws`;
+const socketUrl =
+	process.env.NEXT_PUBLIC_WS_URL ??
+	`${window.location.protocol === "https:" ? "wss" : "ws"}://${process.env.NEXT_PUBLIC_WS_HOST ?? window.location.host}/ws`;
 ```
 
 ### 3) Remove/flag mock ingest fallback
 
 Current mock path:
+
 - `src/components/asset-dropzone.tsx`
 - on upload failure -> `createLocalAsset(file)`
 
 Target:
+
 - Production should fail loudly and show UI error if API upload fails.
 - Keep mock fallback only behind explicit feature flag for local UI testing.
 
 Recommended env flag:
+
 - `NEXT_PUBLIC_ENABLE_LOCAL_MOCK_INGEST=true|false`
 
 ### 4) Persist timeline mutations to backend
 
 Current:
+
 - Reorder is synced.
 - Add clip/delete clip/update clip are mostly local.
 
 Target:
+
 - `addAssetToTimeline` should call `POST /api/paper-edit/clips`
 - clip edits should call `PATCH /api/paper-edit/clips/{clip_id}`
 - clip delete should call `DELETE /api/paper-edit/clips/{clip_id}`
 - keep optimistic updates with rollback on failure
 
 Recommended sequence for each mutation:
+
 1. Apply optimistic store update.
 2. Execute API call.
 3. On failure: rollback and surface non-blocking error.
@@ -169,9 +185,11 @@ Recommended sequence for each mutation:
 ### 5) Decide behavior for asset rename/delete
 
 If backend supports endpoints:
+
 - Wire rename/delete actions from `AssetDropzone` to API and then refresh with `getAssets()`.
 
 If backend does NOT support endpoints:
+
 - Disable rename/delete controls in production build and leave them for mock mode only.
 
 ## Vercel Deployment Plan
@@ -186,22 +204,27 @@ If backend does NOT support endpoints:
 
 Set these in Vercel Project Settings for Preview and Production:
 
-1. `KINETOGRAPH_API_ORIGIN`
-- Example: `https://api.kinetograph.yourdomain.com`
+1. `Montazh_API_ORIGIN`
+
+- Example: `https://api.Montazh.yourdomain.com`
 
 2. `NEXT_PUBLIC_WS_URL`
-- Example: `wss://api.kinetograph.yourdomain.com/ws`
+
+- Example: `wss://api.Montazh.yourdomain.com/ws`
 
 3. Optional local/mock feature flags
+
 - `NEXT_PUBLIC_ENABLE_LOCAL_MOCK_INGEST=false` (recommended in preview/prod)
 
 ## CORS and WebSocket origin requirements on backend
 
 Allow origins for:
-- Production frontend domain (e.g. `https://kinetograph.vercel.app` or custom domain)
+
+- Production frontend domain (e.g. `https://Montazh.vercel.app` or custom domain)
 - Preview domains if needed (e.g. `https://*.vercel.app` strategy as supported by backend framework)
 
 If credentials/cookies are involved later:
+
 - Do not use wildcard `*` origins with credentials.
 - Enumerate exact allowed origins.
 
@@ -222,28 +245,33 @@ If credentials/cookies are involved later:
 ## Integration Smoke Test Checklist
 
 1. App bootstrap
+
 - `/editor` loads
 - assets and pipeline status fetch successfully
 - ws connects and receives `connected`
 
 2. Upload + bin
+
 - upload video succeeds
 - bin count increments
 - selecting asset updates viewer
 
 3. Timeline editing
+
 - drag bin asset to timeline creates clip (persisted)
 - reorder clips persists
 - delete clip persists
 - timeline duration and ruler reflect server data
 
 4. Pipeline flow
+
 - submit prompt -> pipeline starts
 - ws phase updates render correctly
 - `awaiting_approval` loads paper edit
 - commit sequence resumes pipeline
 
 5. Failure handling
+
 - API 4xx/5xx paths show user feedback
 - ws disconnect triggers reconnect
 
@@ -270,7 +298,7 @@ If credentials/cookies are involved later:
 Treat preview deployments as contract verification gates.
 
 - Backend PR -> deploy backend preview
-- Frontend PR -> point `KINETOGRAPH_API_ORIGIN` + `NEXT_PUBLIC_WS_URL` at backend preview
+- Frontend PR -> point `Montazh_API_ORIGIN` + `NEXT_PUBLIC_WS_URL` at backend preview
 - Block merge unless smoke tests pass end-to-end
 
 That process will keep API/frontend drift low once teams move in parallel.

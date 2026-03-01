@@ -21,7 +21,7 @@ export function LandingHeader() {
 						<Film className="h-4 w-4 fill-current" />
 					</div>
 					<span className="text-[13px] font-bold tracking-[0.08em] text-zinc-100">
-						KINETOGRAPH
+						Montazh
 					</span>
 				</div>
 

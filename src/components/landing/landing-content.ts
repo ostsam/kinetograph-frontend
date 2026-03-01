@@ -29,7 +29,7 @@ export const projectWalkthrough: WalkthroughStage[] = [
 		phase: "Ingest",
 		title: "Drop rushes and sync transcripts",
 		description:
-			"Upload A-roll, B-roll, and interviews once. Kinetograph tags speakers, scenes, and shot intent so material is instantly searchable.",
+			"Upload A-roll, B-roll, and interviews once. Montazh tags speakers, scenes, and shot intent so material is instantly searchable.",
 		output: "Searchable bins + aligned transcript",
 		icon: Upload,
 	},
@@ -78,12 +78,14 @@ export const workflow: WorkflowStep[] = [
 	{
 		step: "02",
 		title: "Direct the narrative",
-		description: "Define story beats, pacing, and audience outcome in one brief.",
+		description:
+			"Define story beats, pacing, and audience outcome in one brief.",
 	},
 	{
 		step: "03",
 		title: "Approve the paper edit",
-		description: "Validate clip order and story logic before assembly locks in.",
+		description:
+			"Validate clip order and story logic before assembly locks in.",
 	},
 	{
 		step: "04",
@@ -111,7 +113,8 @@ export const swarmCapabilityCards = [
 	},
 	{
 		title: "Sequence Discipline",
-		description: "Keeps clip decisions deterministic across revisions and exports.",
+		description:
+			"Keeps clip decisions deterministic across revisions and exports.",
 		icon: Clapperboard,
 	},
 ];

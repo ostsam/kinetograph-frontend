@@ -1,18 +1,18 @@
 import { useEffect, useRef, useCallback, useState } from "react";
-import { useKinetographStore } from "@/store/use-kinetograph-store";
+import { useMontazhStore } from "@/store/use-montazh-store";
 import { useChatStore } from "@/store/use-chat-store";
-import { WSEvent, Phase } from "@/types/kinetograph";
+import { WSEvent, Phase } from "@/types/montazh";
 import { PHASE_DESCRIPTIONS, NODE_TO_AGENT } from "@/types/chat";
-import { KinetographAPI } from "@/lib/api";
+import { MontazhAPI } from "@/lib/api";
 
-export function useKinetographWS() {
+export function useMontazhWS() {
 	const ws = useRef<WebSocket | null>(null);
 	const [isConnected, setIsConnected] = useState(false);
-	const setPhase = useKinetographStore((s) => s.setPhase);
-	const addError = useKinetographStore((s) => s.addError);
-	const setPaperEdit = useKinetographStore((s) => s.setPaperEdit);
-	const setAssets = useKinetographStore((s) => s.setAssets);
-	const setRenderUrl = useKinetographStore((s) => s.setRenderUrl);
+	const setPhase = useMontazhStore((s) => s.setPhase);
+	const addError = useMontazhStore((s) => s.addError);
+	const setPaperEdit = useMontazhStore((s) => s.setPaperEdit);
+	const setAssets = useMontazhStore((s) => s.setAssets);
+	const setRenderUrl = useMontazhStore((s) => s.setRenderUrl);
 
 	const connectRef = useRef<() => void>(() => {});
 
@@ -91,7 +91,8 @@ export function useKinetographWS() {
 
 						// Update agent activity indicator
 						const phaseStr = data.phase.toString();
-						const isCompleted = phaseStr.endsWith("ed") ||
+						const isCompleted =
+							phaseStr.endsWith("ed") ||
 							data.phase === Phase.COMPLETE ||
 							data.phase === Phase.ERROR ||
 							data.phase === Phase.AWAITING_APPROVAL;
@@ -133,9 +134,11 @@ export function useKinetographWS() {
 							data.phase === Phase.SCRIPTED ||
 							data.phase === Phase.RENDERED
 						) {
-							KinetographAPI.getPaperEdit().then((pe) => {
-								setPaperEdit(pe);
-							}).catch(() => {});
+							MontazhAPI.getPaperEdit()
+								.then((pe) => {
+									setPaperEdit(pe);
+								})
+								.catch(() => {});
 						}
 
 						// Pipeline complete (handled by pipeline_complete event — just update UI state here)
@@ -174,38 +177,43 @@ export function useKinetographWS() {
 						chatComplete.removeLoadingMessages();
 
 						// Re-fetch assets (synth clips may have been added)
-						KinetographAPI.getAssets()
+						MontazhAPI.getAssets()
 							.then((res) => setAssets(res.assets))
 							.catch(() => {});
 
 						// Fetch latest paper edit
-						KinetographAPI.getPaperEdit()
+						MontazhAPI.getPaperEdit()
 							.then((pe) => setPaperEdit(pe))
 							.catch(() => {});
 
 						// Fetch output files — pick the best (most processed) MP4
-						KinetographAPI.getOutputs().then((out) => {
-							const mp4s = out.files.filter((f) => f.type === "mp4");
-							const bestMp4 =
-								mp4s.find((f) => f.file_name.includes("_mastered")) ||
-								mp4s.find((f) => f.file_name.includes("_captioned")) ||
-								mp4s[mp4s.length - 1];
-							const timeline = out.files.find(
-								(f) => f.type === "otio",
-							);
+						MontazhAPI.getOutputs()
+							.then((out) => {
+								const mp4s = out.files.filter((f) => f.type === "mp4");
+								const bestMp4 =
+									mp4s.find((f) => f.file_name.includes("_mastered")) ||
+									mp4s.find((f) => f.file_name.includes("_captioned")) ||
+									mp4s[mp4s.length - 1];
+								const timeline = out.files.find((f) => f.type === "otio");
 
-							// Set the rendered video URL for the viewer
-							if (bestMp4) {
-								setRenderUrl(`/api/assets/stream?path=${encodeURIComponent(bestMp4.file_path)}`);
-							}
+								// Set the rendered video URL for the viewer
+								if (bestMp4) {
+									setRenderUrl(
+										`/api/assets/stream?path=${encodeURIComponent(bestMp4.file_path)}`,
+									);
+								}
 
-							chatComplete.addPipelineComplete(
-								bestMp4?.file_path || data.render_path,
-								timeline?.file_path || data.timeline_path,
-							);
-						}).catch(() => {
-							chatComplete.addPipelineComplete(data.render_path, data.timeline_path);
-						});
+								chatComplete.addPipelineComplete(
+									bestMp4?.file_path || data.render_path,
+									timeline?.file_path || data.timeline_path,
+								);
+							})
+							.catch(() => {
+								chatComplete.addPipelineComplete(
+									data.render_path,
+									data.timeline_path,
+								);
+							});
 						break;
 					}
 
@@ -241,8 +249,12 @@ export function useKinetographWS() {
 	// Safety timeout: auto-clear spinner if stuck for >3 minutes
 	useEffect(() => {
 		const interval = setInterval(() => {
-			const { agentActivity, setAgentActivity, setProcessing, setPipelineActive } =
-				useChatStore.getState();
+			const {
+				agentActivity,
+				setAgentActivity,
+				setProcessing,
+				setPipelineActive,
+			} = useChatStore.getState();
 			if (agentActivity?.isActive && agentActivity.startedAt) {
 				const elapsed = Date.now() - agentActivity.startedAt;
 				if (elapsed > 3 * 60 * 1000) {
