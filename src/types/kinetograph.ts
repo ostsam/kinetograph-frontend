@@ -60,6 +60,37 @@ export const PREVIEW_RESOLUTIONS: Record<PreviewResolution, { label: string; wid
   '1:1':  { label: '1:1 Square',    width: 1080, height: 1080 },
 };
 
+// ─── Color Grading ─────────────────────────────────────────────────────────────
+
+export interface ColorGrade {
+  brightness: number;   // -1..1,  0 = neutral
+  contrast: number;     //  0..3,  1 = neutral
+  saturation: number;   //  0..3,  1 = neutral
+  gamma: number;        // 0.1..5, 1 = neutral
+  temperature: number;  // -1..1,  0 = neutral
+  tint: number;         // -1..1,  0 = neutral
+  shadows: number;      // -1..1,  0 = neutral
+  highlights: number;   // -1..1,  0 = neutral
+}
+
+export const DEFAULT_COLOR_GRADE: ColorGrade = {
+  brightness: 0, contrast: 1, saturation: 1, gamma: 1,
+  temperature: 0, tint: 0, shadows: 0, highlights: 0,
+};
+
+// ─── Render Request ────────────────────────────────────────────────────────────
+
+export interface RenderRequest {
+  width: number;
+  height: number;
+  quality: 'high' | 'medium' | 'low';
+}
+
+export interface RenderResponse {
+  status: string;
+  message: string;
+}
+
 // ─── Overlay (V2) clip types ───────────────────────────────────────────────────
 
 export type OverlayPreset = 'pip-br' | 'pip-bl' | 'pip-tr' | 'pip-tl' | 'pip-center' | 'side-by-side' | 'custom';
@@ -231,7 +262,7 @@ export type WSEvent =
   | { type: 'pipeline_started'; thread_id: string }
   | { type: 'phase_update'; node: string; phase: Phase; timestamp: string; errors: PipelineError[] }
   | { type: 'awaiting_approval'; paper_edit: PaperEdit }
-  | { type: 'pipeline_complete'; phase: Phase; render_path?: string; timeline_path?: string; music_path?: string }
+  | { type: 'pipeline_complete'; phase: Phase; render_path?: string; timeline_path?: string; music_path?: string; overlay_clips?: Record<string, unknown>[] }
   | { type: 'caption_style_options'; styles: CaptionStylePreset[] }
   | { type: 'pong' };
 

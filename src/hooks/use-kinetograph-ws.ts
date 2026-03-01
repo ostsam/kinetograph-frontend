@@ -1,7 +1,7 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 import { useKinetographStore } from "@/store/use-kinetograph-store";
 import { useChatStore } from "@/store/use-chat-store";
-import { WSEvent, Phase } from "@/types/kinetograph";
+import { WSEvent, Phase, OverlayClip, OVERLAY_PRESETS, OverlayPreset } from "@/types/kinetograph";
 import { PHASE_DESCRIPTIONS, NODE_TO_AGENT } from "@/types/chat";
 import { KinetographAPI } from "@/lib/api";
 
@@ -195,6 +195,27 @@ export function useKinetographWS() {
 						// Capture music_path from event immediately
 						if (data.music_path) {
 							setMusicPath(data.music_path);
+						}
+
+						// Populate V2 overlay clips from backend
+						if (data.overlay_clips && Array.isArray(data.overlay_clips) && data.overlay_clips.length > 0) {
+							const store = useKinetographStore.getState();
+							const v2Clips: OverlayClip[] = data.overlay_clips.map((oc: Record<string, unknown>, i: number) => {
+								const preset = (oc.overlay_preset as OverlayPreset) || 'pip-br';
+								const transform = OVERLAY_PRESETS[preset] || OVERLAY_PRESETS['pip-br'];
+								const sourceFile = typeof oc.source_file === 'string' ? oc.source_file : '';
+								return {
+									id: `v2-pipeline-${i}`,
+									sourceAssetId: (store.assets.find((a) => sourceFile.includes(a.file_name))?.id) || '',
+									sourceFile: sourceFile.split('/').pop() || sourceFile,
+									inMs: (oc.in_ms as number) || 0,
+									outMs: (oc.out_ms as number) || 3000,
+									timelineStartMs: (oc.timeline_start_ms as number) || 0,
+									transform: { ...transform },
+									preset,
+								} satisfies OverlayClip;
+							});
+							store.setV2Clips(v2Clips);
 						}
 
 						// Re-fetch assets (synth clips may have been added)

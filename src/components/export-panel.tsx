@@ -172,10 +172,14 @@ export function ExportPanel({ onClose }: ExportPanelProps) {
 		setError(null);
 		const preset = RESOLUTION_PRESETS[selectedResolution];
 		try {
-			// TODO: integrate with backend render API
-			// await KinetographAPI.startRender({ width: preset.width, height: preset.height, quality: renderQuality });
-			void preset;
-			await new Promise((resolve) => setTimeout(resolve, 1500));
+			await KinetographAPI.startRender({
+				width: preset.width,
+				height: preset.height,
+				quality: renderQuality,
+			});
+			// The render runs in the background — the WS pipeline_complete event
+			// will signal when it's done. Poll outputs after a short delay.
+			await new Promise((resolve) => setTimeout(resolve, 2000));
 			await fetchOutputs();
 		} catch (err) {
 			setError(err instanceof Error ? err.message : "Render failed");

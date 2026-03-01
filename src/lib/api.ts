@@ -13,6 +13,9 @@ import {
 	EditRequest,
 	EditResponse,
 	CaptionStylePreset,
+	RenderRequest,
+	RenderResponse,
+	ColorGrade,
 } from "@/types/kinetograph";
 
 const api = ky.create({
@@ -89,4 +92,19 @@ export const KinetographAPI = {
 		api
 			.post("paper-edit/clips", { json: clip })
 			.json<{ status: string; total_clips: number }>(),
+
+	// Render with custom resolution/quality
+	startRender: (request: RenderRequest) =>
+		api.post("render", { json: request }).json<RenderResponse>(),
+
+	// Config management
+	updateConfig: (config: { output_width?: number; output_height?: number; output_orientation?: string; output_fps?: number }) =>
+		api.post("config", { json: config }).json<{ status: string; output_width: number; output_height: number }>(),
+
+	// Color grading
+	getColorGrade: () =>
+		api.get("config/color-grade").json<ColorGrade>(),
+
+	setColorGrade: (grade: ColorGrade) =>
+		api.post("config/color-grade", { json: grade }).json<{ status: string; color_grade: ColorGrade }>(),
 };

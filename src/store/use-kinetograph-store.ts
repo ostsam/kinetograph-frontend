@@ -12,6 +12,8 @@ import {
 	OverlayPreset,
 	OVERLAY_PRESETS,
 	PreviewResolution,
+	ColorGrade,
+	DEFAULT_COLOR_GRADE,
 } from "@/types/kinetograph";
 
 // ─── Default tracks ───────────────────────────────────────────────────────────
@@ -45,6 +47,7 @@ interface KinetographState {
 	playheadMs: number;
 	renderUrl: string | null;
 	previewResolution: PreviewResolution;
+	colorGrade: ColorGrade;
 
 	// Actions
 	setPhase: (phase: Phase) => void;
@@ -82,6 +85,7 @@ interface KinetographState {
 	reorderV2Clips: (clipIds: string[]) => void;
 	setSelectedV2Clip: (clipId: string | null) => void;
 	trimV2Clip: (clipId: string, edge: 'in' | 'out', deltaMs: number) => void;
+	setV2Clips: (clips: OverlayClip[]) => void;
 
 	// A2 Audio Actions
 	addA2Clip: (assetId: string, timelineStartMs: number) => string | null;
@@ -98,6 +102,7 @@ interface KinetographState {
 	setSelectedAsset: (assetId: string | null) => void;
 	setSelectedClip: (clipId: string | null) => void;
 	setPreviewResolution: (res: PreviewResolution) => void;
+	setColorGrade: (grade: Partial<ColorGrade>) => void;
 	addAssetToTimeline: (assetId: string, targetTrack?: 'V1' | 'V2' | 'A2') => string | null;
 	addAssetsToTimeline: (assetIds: string[], targetTrack?: 'V1' | 'V2' | 'A2') => string[];
 }
@@ -128,7 +133,8 @@ export const useKinetographStore = create<KinetographState>((set, get) => ({
 	selectedV2ClipId: null,
 	playheadMs: 0,
 	renderUrl: null,
-	previewResolution: '16:9' as PreviewResolution,
+	previewResolution: '9:16' as PreviewResolution,
+	colorGrade: { ...DEFAULT_COLOR_GRADE },
 	undoStack: [],
 	redoStack: [],
 
@@ -249,6 +255,8 @@ export const useKinetographStore = create<KinetographState>((set, get) => ({
 		}),
 
 	setSelectedV2Clip: (clipId) => set({ selectedV2ClipId: clipId }),
+
+	setV2Clips: (clips) => set({ v2Clips: clips, selectedV2ClipId: null }),
 
 	trimV2Clip: (clipId, edge, deltaMs) =>
 		set((s) => ({
@@ -373,6 +381,7 @@ export const useKinetographStore = create<KinetographState>((set, get) => ({
 	setSelectedAsset: (assetId) => set({ selectedAssetId: assetId, selectedAssetIds: assetId ? new Set([assetId]) : new Set() }),
 	setSelectedClip: (clipId) => set({ selectedClipId: clipId }),
 	setPreviewResolution: (res) => set({ previewResolution: res }),
+	setColorGrade: (grade) => set((s) => ({ colorGrade: { ...s.colorGrade, ...grade } })),
 
 	toggleAssetSelected: (assetId, multi) =>
 		set((s) => {

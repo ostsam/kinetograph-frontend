@@ -16,6 +16,7 @@ import { AssetDropzone } from "@/components/asset-dropzone";
 import { TimelineEditor } from "@/components/timeline-editor";
 import { ExportPanel } from "@/components/export-panel";
 import { ChatPanel } from "@/components/chat-panel";
+import { ColorGradePanel } from "@/components/color-grade-panel";
 import {
 	Film,
 	Layout,
@@ -31,6 +32,7 @@ import {
 	FolderOpen,
 	Sparkles,
 	Monitor,
+	Palette,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
@@ -58,6 +60,7 @@ export default function EditorPage() {
 	const router = useRouter();
 	const [isSidebarCollapsed, setSidebarCollapsed] = useState(false);
 	const [showExportPanel, setShowExportPanel] = useState(false);
+	const [sidebarTab, setSidebarTab] = useState<'media' | 'color'>('media');
 	const leftPanelRef = useRef<PanelImperativeHandle>(null);
 	const chatPanelRef = useRef<PanelImperativeHandle>(null);
 
@@ -73,11 +76,40 @@ export default function EditorPage() {
 	const musicPath = useKinetographStore((s) => s.musicPath);
 	const previewResolution = useKinetographStore((s) => s.previewResolution);
 	const setPreviewResolution = useKinetographStore((s) => s.setPreviewResolution);
+	const colorGrade = useKinetographStore((s) => s.colorGrade);
 
 	const isChatOpen = useChatStore((s) => s.isOpen);
 	const setChatOpen = useChatStore((s) => s.setOpen);
 	const toggleChat = useChatStore((s) => s.toggleOpen);
 	const pipelineActive = useChatStore((s) => s.pipelineActive);
+
+	// CSS filter for real-time color-grade preview
+	const colorGradeFilter = useMemo(() => {
+		const parts: string[] = [];
+		// brightness: FFmpeg -1..1 (additive) → CSS 0..2 (multiplicative)
+		if (Math.abs(colorGrade.brightness) > 0.001)
+			parts.push(`brightness(${1 + colorGrade.brightness})`);
+		// contrast: both are multipliers (1 = neutral)
+		if (Math.abs(colorGrade.contrast - 1) > 0.001)
+			parts.push(`contrast(${colorGrade.contrast})`);
+		// saturation → CSS saturate (1 = neutral)
+		if (Math.abs(colorGrade.saturation - 1) > 0.001)
+			parts.push(`saturate(${colorGrade.saturation})`);
+		// gamma: rough approximation via brightness curve
+		if (Math.abs(colorGrade.gamma - 1) > 0.05) {
+			const gammaCorrection = 1 / colorGrade.gamma;
+			parts.push(`brightness(${gammaCorrection})`);
+		}
+		// temperature: warm → sepia tint, cool → hue shift
+		if (Math.abs(colorGrade.temperature) > 0.01) {
+			if (colorGrade.temperature > 0) {
+				parts.push(`sepia(${colorGrade.temperature * 0.3})`);
+			} else {
+				parts.push(`hue-rotate(${colorGrade.temperature * 30}deg)`);
+			}
+		}
+		return parts.length > 0 ? parts.join(" ") : "none";
+	}, [colorGrade]);
 
 	// Connect WebSocket for real-time pipeline updates
 	const { isConnected } = useKinetographWS();
@@ -116,6 +148,7 @@ export default function EditorPage() {
 	// ── V2 Overlay ──────────────────────────────────────────────────
 	const v2VideoRef = useRef<HTMLVideoElement>(null);
 	const loadedV2SrcRef = useRef<string | null>(null);
+	const [v2Ready, setV2Ready] = useState(false);
 
 	const visibleV2Clip = v2Clips.length > 0 ? v2Clips[0] : null;
 	const v2StreamUrl = useMemo(() => {
@@ -124,7 +157,7 @@ export default function EditorPage() {
 		return asset?.stream_url ?? null;
 	}, [visibleV2Clip, assets]);
 
-	// Load V2 video source
+	// Load V2 video source — deferred to avoid blocking main player
 	useEffect(() => {
 		const video = v2VideoRef.current;
 		if (!video) return;
@@ -133,35 +166,57 @@ export default function EditorPage() {
 			video.removeAttribute("src");
 			video.load();
 			loadedV2SrcRef.current = null;
+			setV2Ready(false);
 			return;
 		}
 		let fullUrl: string;
 		try { fullUrl = new URL(v2StreamUrl, window.location.href).href; } catch { fullUrl = v2StreamUrl; }
 		if (loadedV2SrcRef.current === fullUrl) return;
-		loadedV2SrcRef.current = fullUrl;
-		const seekTime = (visibleV2Clip?.inMs ?? 0) / 1000;
-		video.src = v2StreamUrl;
-		video.load();
-		const onCanPlay = () => {
-			video.currentTime = seekTime;
-			video.play().then(() => {
-				if (playbackState !== "playing") video.pause();
-			}).catch(() => {});
+
+		// Defer loading by 200ms to let the main player settle first
+		setV2Ready(false);
+		const timer = setTimeout(() => {
+			loadedV2SrcRef.current = fullUrl;
+			const seekTime = (visibleV2Clip?.inMs ?? 0) / 1000;
+			video.src = v2StreamUrl;
+			video.load();
+			const onCanPlay = () => {
+				try {
+					video.currentTime = seekTime;
+					setV2Ready(true);
+					if (playbackState === "playing") {
+						video.play().catch(() => {});
+					}
+				} catch {
+					// Video may have been unloaded
+				}
+			};
+			const onError = () => {
+				setV2Ready(false);
+				loadedV2SrcRef.current = null;
+			};
+			video.addEventListener("canplay", onCanPlay, { once: true });
+			video.addEventListener("error", onError, { once: true });
+		}, 200);
+		return () => {
+			clearTimeout(timer);
 		};
-		video.addEventListener("canplay", onCanPlay, { once: true });
-		return () => { video.removeEventListener("canplay", onCanPlay); };
 	}, [v2StreamUrl, visibleV2Clip?.inMs, playbackState]);
 
 	// Sync V2 play/pause with main player
 	useEffect(() => {
 		const video = v2VideoRef.current;
-		if (!video || !v2StreamUrl || !video.src) return;
-		if (playbackState === "playing") {
-			video.play().catch(() => {});
-		} else if (video.readyState >= 2) {
-			video.pause();
+		if (!video || !v2StreamUrl || !video.src || !v2Ready) return;
+		try {
+			if (playbackState === "playing") {
+				video.play().catch(() => {});
+			} else if (video.readyState >= 2) {
+				video.pause();
+			}
+		} catch {
+			// Ignore errors from stale video element
 		}
-	}, [playbackState, v2StreamUrl]);
+	}, [playbackState, v2StreamUrl, v2Ready]);
 
 	useEffect(() => {
 		const v = renderedVideoRef.current;
@@ -529,15 +584,33 @@ export default function EditorPage() {
 							collapsible
 							className={cn("flex flex-col border-r border-zinc-800 bg-[#121215]", isSidebarCollapsed && "hidden")}
 						>
-							<div className="flex items-center justify-between h-7 border-b border-zinc-800 bg-zinc-900/50 px-3">
-								<div className="flex items-center gap-1.5">
-									<FolderOpen className="h-3 w-3 text-zinc-500" />
-									<span className="text-[10px] font-medium text-zinc-400">Media</span>
-								</div>
-								<span className="text-[9px] font-mono text-zinc-600">{assets.length}</span>
+							{/* Sidebar tabs */}
+							<div className="flex items-center h-7 border-b border-zinc-800 bg-zinc-900/50">
+								<button
+									onClick={() => setSidebarTab('media')}
+									className={cn(
+										"flex items-center gap-1.5 flex-1 justify-center h-full text-[10px] font-medium transition-colors border-b-2",
+										sidebarTab === 'media' ? "border-blue-500 text-zinc-300" : "border-transparent text-zinc-500 hover:text-zinc-400"
+									)}
+								>
+									<FolderOpen className="h-3 w-3" />
+									Media
+									<span className="text-[8px] font-mono text-zinc-600">{assets.length}</span>
+								</button>
+								<button
+									onClick={() => setSidebarTab('color')}
+									className={cn(
+										"flex items-center gap-1.5 flex-1 justify-center h-full text-[10px] font-medium transition-colors border-b-2",
+										sidebarTab === 'color' ? "border-blue-500 text-zinc-300" : "border-transparent text-zinc-500 hover:text-zinc-400"
+									)}
+								>
+									<Palette className="h-3 w-3" />
+									Color
+								</button>
 							</div>
 							<div className="flex-1 overflow-y-auto custom-scrollbar p-2">
-								<AssetDropzone />
+								{sidebarTab === 'media' && <AssetDropzone />}
+								{sidebarTab === 'color' && <ColorGradePanel />}
 							</div>
 						</Panel>
 
@@ -564,7 +637,16 @@ export default function EditorPage() {
 											<div className="absolute top-2 right-2 z-40">
 												<select
 													value={previewResolution}
-													onChange={(e) => setPreviewResolution(e.target.value as PreviewResolution)}
+													onChange={(e) => {
+														const res = e.target.value as PreviewResolution;
+														setPreviewResolution(res);
+														const dims = PREVIEW_RESOLUTIONS[res];
+														KinetographAPI.updateConfig({
+															output_width: dims.width,
+															output_height: dims.height,
+															output_orientation: dims.height > dims.width ? 'portrait' : 'landscape',
+														}).catch(() => {});
+													}}
 													className="bg-zinc-900/80 border border-zinc-700 text-zinc-300 text-[9px] rounded px-1.5 py-0.5 cursor-pointer hover:bg-zinc-800 focus:outline-none focus:ring-1 focus:ring-blue-500/50 backdrop-blur-sm"
 												>
 													{(Object.entries(PREVIEW_RESOLUTIONS) as [PreviewResolution, { label: string }][]).map(([key, val]) => (
@@ -577,8 +659,7 @@ export default function EditorPage() {
 												style={{
 													aspectRatio: `${PREVIEW_RESOLUTIONS[previewResolution].width} / ${PREVIEW_RESOLUTIONS[previewResolution].height}`,
 													height: '100%',
-													maxWidth: '100%',
-												}}
+													maxWidth: '100%',												filter: colorGradeFilter,												}}
 											>
 											{isRenderedMode ? (
 												<>
@@ -674,20 +755,18 @@ export default function EditorPage() {
 												</>
 											)}
 
-											{/* V2 Overlay — always mounted, CSS visibility */}
-											<div
-												className={cn(
-													"absolute overflow-hidden pointer-events-none z-10",
-													visibleV2Clip ? "block" : "hidden",
-												)}
-												style={visibleV2Clip ? {
-													left: `${visibleV2Clip.transform.x}%`,
-													top: `${visibleV2Clip.transform.y}%`,
-													width: `${visibleV2Clip.transform.width}%`,
-													height: `${visibleV2Clip.transform.height}%`,
-													opacity: visibleV2Clip.transform.opacity,
-													borderRadius: `${visibleV2Clip.transform.borderRadius}px`,
-												} : undefined}
+										{/* V2 Overlay — smooth fade via CSS transition */}
+										<div
+											className="absolute overflow-hidden pointer-events-none z-10"
+											style={{
+												left: visibleV2Clip ? `${visibleV2Clip.transform.x}%` : 0,
+												top: visibleV2Clip ? `${visibleV2Clip.transform.y}%` : 0,
+												width: visibleV2Clip ? `${visibleV2Clip.transform.width}%` : 0,
+												height: visibleV2Clip ? `${visibleV2Clip.transform.height}%` : 0,
+												opacity: (visibleV2Clip && v2Ready) ? visibleV2Clip.transform.opacity : 0,
+												borderRadius: visibleV2Clip ? `${visibleV2Clip.transform.borderRadius}px` : 0,
+												transition: 'opacity 0.5s ease-in-out',
+											}}
 											>
 												<video
 													ref={v2VideoRef}
