@@ -2,9 +2,25 @@
 
 import { useRef, useCallback, useEffect, useState } from "react";
 import { useKinetographStore } from "@/store/use-kinetograph-store";
-import type { PaperEditClip } from "@/types/kinetograph";
+import type { PaperEditClip, TransitionType } from "@/types/kinetograph";
 
 export type PlaybackState = "idle" | "playing" | "paused";
+
+/** Info about an in-progress visual transition */
+export interface TransitionState {
+	active: boolean;
+	type: TransitionType;
+	/** 0 → 1 over the transition duration */
+	progress: number;
+	durationMs: number;
+}
+
+const EMPTY_TRANSITION: TransitionState = {
+	active: false,
+	type: "cut",
+	progress: 0,
+	durationMs: 0,
+};
 
 function resolveClipUrl(
 	clip: PaperEditClip,
@@ -39,17 +55,68 @@ function resolvePlayheadToClip(
 	return null;
 }
 
+function loadVideoSource(
+	video: HTMLVideoElement,
+	clip: PaperEditClip,
+	assets: { file_name: string; file_path: string; stream_url: string }[],
+	seekMs: number,
+): Promise<boolean> {
+	return new Promise((resolve) => {
+		const url = resolveClipUrl(clip, assets);
+		if (!url) { resolve(false); return; }
+
+		const onReady = () => {
+			video.removeEventListener("canplay", onReady);
+			video.removeEventListener("error", onErr);
+			video.currentTime = seekMs / 1000;
+			resolve(true);
+		};
+		const onErr = () => {
+			video.removeEventListener("canplay", onReady);
+			video.removeEventListener("error", onErr);
+			resolve(false);
+		};
+
+		// If same source, just seek
+		if (video.src && video.src === new URL(url, window.location.href).href) {
+			video.currentTime = seekMs / 1000;
+			resolve(true);
+			return;
+		}
+
+		video.addEventListener("canplay", onReady);
+		video.addEventListener("error", onErr);
+		video.src = url;
+		video.load();
+	});
+}
+
 export function useVideoPlayer() {
-	const videoRef = useRef<HTMLVideoElement>(null);
+	// Two video elements for seamless transitions
+	const videoARef = useRef<HTMLVideoElement>(null);
+	const videoBRef = useRef<HTMLVideoElement>(null);
+	/** Which element is currently "active" (foreground) */
+	const activeSlotRef = useRef<"A" | "B">("A");
+
 	const rafRef = useRef<number>(0);
 	const activeClipIdRef = useRef<string | null>(null);
 	const isPlayingRef = useRef(false);
 	const clipsRef = useRef<PaperEditClip[]>([]);
 
+	// Transition state
+	const transitionRef = useRef<{
+		active: boolean;
+		type: TransitionType;
+		durationMs: number;
+		startedAt: number; // performance.now()
+		seqMsAtStart: number; // timeline ms when transition began
+	} | null>(null);
+
 	const [playbackState, setPlaybackState] = useState<PlaybackState>("idle");
 	const [currentTimeDisplay, setCurrentTimeDisplay] = useState(0);
 	const [volume, setVolumeState] = useState(1);
 	const [playbackRate, setPlaybackRateState] = useState(1);
+	const [transitionState, setTransitionState] = useState<TransitionState>(EMPTY_TRANSITION);
 
 	const assets = useKinetographStore((s) => s.assets);
 	const paperEdit = useKinetographStore((s) => s.paperEdit);
@@ -59,52 +126,36 @@ export function useVideoPlayer() {
 
 	const clips = paperEdit?.clips ?? [];
 
-	useEffect(() => {
-		clipsRef.current = clips;
-	}, [clips]);
+	useEffect(() => { clipsRef.current = clips; }, [clips]);
 
-	const totalDurationMs = clips.reduce(
-		(sum, c) => sum + (c.out_ms - c.in_ms),
-		0,
-	);
+	const totalDurationMs = clips.reduce((sum, c) => sum + (c.out_ms - c.in_ms), 0);
 
-	const loadClipSource = useCallback(
-		(video: HTMLVideoElement, clip: PaperEditClip, seekOffsetMs: number): Promise<boolean> => {
-			return new Promise((resolve) => {
-				const url = resolveClipUrl(clip, assets);
-				if (!url) {
-					resolve(false);
-					return;
-				}
-				if (activeClipIdRef.current !== clip.clip_id) {
-					activeClipIdRef.current = clip.clip_id;
-					const onReady = () => {
-						video.removeEventListener("canplay", onReady);
-						video.removeEventListener("error", onErr);
-						video.currentTime = seekOffsetMs / 1000;
-						resolve(true);
-					};
-					const onErr = () => {
-						video.removeEventListener("canplay", onReady);
-						video.removeEventListener("error", onErr);
-						resolve(false);
-					};
-					video.addEventListener("canplay", onReady);
-					video.addEventListener("error", onErr);
-					video.src = url;
-					video.load();
-				} else {
-					video.currentTime = seekOffsetMs / 1000;
-					resolve(true);
-				}
-			});
+	/** Get the currently-active video element */
+	const getActiveVideo = useCallback(() => {
+		return activeSlotRef.current === "A" ? videoARef.current : videoBRef.current;
+	}, []);
+
+	/** Get the inactive (standby) video element */
+	const getStandbyVideo = useCallback(() => {
+		return activeSlotRef.current === "A" ? videoBRef.current : videoARef.current;
+	}, []);
+
+	/** Swap active/standby */
+	const swapSlots = useCallback(() => {
+		activeSlotRef.current = activeSlotRef.current === "A" ? "B" : "A";
+	}, []);
+
+	/** Load a clip into a specific video element */
+	const loadClipInto = useCallback(
+		(video: HTMLVideoElement, clip: PaperEditClip, seekMs: number) => {
+			return loadVideoSource(video, clip, assets, seekMs);
 		},
 		[assets],
 	);
 
 	const seekToClip = useCallback(
 		(clipId: string) => {
-			const video = videoRef.current;
+			const video = getActiveVideo();
 			if (!video || clips.length === 0) return;
 			let offset = 0;
 			for (const c of clips) {
@@ -113,21 +164,65 @@ export function useVideoPlayer() {
 			}
 			const target = resolvePlayheadToClip(offset, clips);
 			if (!target) return;
-			loadClipSource(video, target.clip, target.offsetMs);
+			activeClipIdRef.current = target.clip.clip_id;
+			loadClipInto(video, target.clip, target.offsetMs);
 			setPlayhead(offset);
 			setCurrentTimeDisplay(offset);
 		},
-		[clips, loadClipSource, setPlayhead],
+		[clips, loadClipInto, setPlayhead, getActiveVideo],
 	);
 
 	useEffect(() => {
-		if (selectedClipId) seekToClip(selectedClipId);
+		if (selectedClipId && !isPlayingRef.current) {
+			seekToClip(selectedClipId);
+		}
 	}, [selectedClipId, seekToClip]);
 
+	// ── Main rAF tick ────────────────────────────────────────────────
 	const tickPlayhead = useCallback(() => {
-		const video = videoRef.current;
-		if (!video || video.paused) {
-			isPlayingRef.current = false;
+		const activeVideo = getActiveVideo();
+		if (!activeVideo) return;
+
+		// ─── During a visual transition ────────────────────────────
+		const tr = transitionRef.current;
+		if (tr && tr.active) {
+			const elapsed = performance.now() - tr.startedAt;
+			const progress = Math.min(1, elapsed / tr.durationMs);
+			const seqMs = tr.seqMsAtStart + elapsed * (playbackRate || 1);
+
+			setPlayhead(seqMs);
+			setCurrentTimeDisplay(seqMs);
+			setTransitionState({
+				active: true,
+				type: tr.type,
+				progress,
+				durationMs: tr.durationMs,
+			});
+
+			if (progress >= 1) {
+				// Transition complete → swap standby to foreground
+				const standby = getStandbyVideo();
+				if (standby) {
+					// Pause outgoing video
+					activeVideo.pause();
+				}
+				swapSlots();
+				transitionRef.current = null;
+				setTransitionState(EMPTY_TRANSITION);
+			}
+
+			if (isPlayingRef.current) {
+				rafRef.current = requestAnimationFrame(tickPlayhead);
+			}
+			return;
+		}
+
+		// ─── Normal playback (no transition) ───────────────────────
+		// If the active video is paused (loading), keep the loop alive
+		if (activeVideo.paused) {
+			if (isPlayingRef.current) {
+				rafRef.current = requestAnimationFrame(tickPlayhead);
+			}
 			return;
 		}
 
@@ -140,34 +235,62 @@ export function useVideoPlayer() {
 		const activeClip = currentClips.find(
 			(c) => c.clip_id === activeClipIdRef.current,
 		);
-		if (!activeClip) return;
+		if (!activeClip) {
+			if (isPlayingRef.current) rafRef.current = requestAnimationFrame(tickPlayhead);
+			return;
+		}
 
-		const currentVideoMs = video.currentTime * 1000;
+		const currentVideoMs = activeVideo.currentTime * 1000;
 		const seqMs = clipStartMs + (currentVideoMs - activeClip.in_ms);
 		setPlayhead(seqMs);
 		setCurrentTimeDisplay(seqMs);
 
+		// ─── Check if clip is ending → advance to next ─────────────
 		if (currentVideoMs >= activeClip.out_ms - 16) {
 			const idx = currentClips.findIndex(
 				(c) => c.clip_id === activeClipIdRef.current,
 			);
 			const nextClip = currentClips[idx + 1];
 			if (nextClip) {
-				const url = resolveClipUrl(nextClip, assets);
-				if (url) {
-					activeClipIdRef.current = nextClip.clip_id;
-					setSelectedClip(nextClip.clip_id);
-					const onReady = () => {
-						video.removeEventListener("canplay", onReady);
-						video.currentTime = nextClip.in_ms / 1000;
-						video.play().catch(() => {});
-					};
-					video.addEventListener("canplay", onReady);
-					video.src = url;
-					video.load();
+				const nextUrl = resolveClipUrl(nextClip, assets);
+				if (nextUrl) {
+					const transType = nextClip.transition ?? "cut";
+					const transDur = transType !== "cut"
+						? (nextClip.transition_duration_ms ?? 500)
+						: 0;
+
+					// Load next clip into the standby video element
+					const standby = getStandbyVideo();
+					if (standby) {
+						activeClipIdRef.current = nextClip.clip_id;
+						setSelectedClip(nextClip.clip_id);
+
+						loadClipInto(standby, nextClip, nextClip.in_ms).then((ok) => {
+							if (!ok || !isPlayingRef.current) return;
+							standby.volume = volume;
+							standby.playbackRate = playbackRate;
+							standby.play().catch(() => {});
+
+							if (transDur > 0) {
+								// Start visual transition
+								transitionRef.current = {
+									active: true,
+									type: transType,
+									durationMs: transDur,
+									startedAt: performance.now(),
+									seqMsAtStart: seqMs,
+								};
+							} else {
+								// Instant cut → swap immediately
+								activeVideo.pause();
+								swapSlots();
+							}
+						});
+					}
 				}
 			} else {
-				video.pause();
+				// Last clip → stop playback
+				activeVideo.pause();
 				isPlayingRef.current = false;
 				setPlaybackState("paused");
 			}
@@ -176,24 +299,30 @@ export function useVideoPlayer() {
 		if (isPlayingRef.current) {
 			rafRef.current = requestAnimationFrame(tickPlayhead);
 		}
-	}, [assets, setPlayhead, setSelectedClip]);
+	}, [assets, setPlayhead, setSelectedClip, getActiveVideo, getStandbyVideo, swapSlots, loadClipInto, volume, playbackRate]);
 
 	const play = useCallback(async () => {
-		const video = videoRef.current;
+		const video = getActiveVideo();
 		if (!video || clips.length === 0) return;
+
+		// Cancel any in-progress transition
+		transitionRef.current = null;
+		setTransitionState(EMPTY_TRANSITION);
 
 		const currentMs = useKinetographStore.getState().playheadMs;
 		const target = resolvePlayheadToClip(currentMs, clips);
 
 		if (!target) {
 			const first = clips[0];
-			const ok = await loadClipSource(video, first, first.in_ms);
+			activeClipIdRef.current = first.clip_id;
+			const ok = await loadClipInto(video, first, first.in_ms);
 			if (!ok) return;
 			setSelectedClip(first.clip_id);
 			setPlayhead(0);
 			setCurrentTimeDisplay(0);
 		} else {
-			const ok = await loadClipSource(video, target.clip, target.offsetMs);
+			activeClipIdRef.current = target.clip.clip_id;
+			const ok = await loadClipInto(video, target.clip, target.offsetMs);
 			if (!ok) return;
 			setSelectedClip(target.clip.clip_id);
 		}
@@ -208,28 +337,35 @@ export function useVideoPlayer() {
 		} catch {
 			/* autoplay blocked */
 		}
-	}, [clips, loadClipSource, tickPlayhead, setSelectedClip, setPlayhead, volume, playbackRate]);
+	}, [clips, loadClipInto, tickPlayhead, setSelectedClip, setPlayhead, volume, playbackRate, getActiveVideo]);
 
 	const pause = useCallback(() => {
-		const video = videoRef.current;
-		if (!video) return;
-		video.pause();
+		const active = getActiveVideo();
+		const standby = getStandbyVideo();
+		active?.pause();
+		standby?.pause();
 		isPlayingRef.current = false;
+		transitionRef.current = null;
+		setTransitionState(EMPTY_TRANSITION);
 		setPlaybackState("paused");
 		cancelAnimationFrame(rafRef.current);
-	}, []);
+	}, [getActiveVideo, getStandbyVideo]);
 
 	const stop = useCallback(() => {
-		const video = videoRef.current;
-		if (!video) return;
-		video.pause();
+		const active = getActiveVideo();
+		const standby = getStandbyVideo();
+		active?.pause();
+		standby?.pause();
 		isPlayingRef.current = false;
+		transitionRef.current = null;
+		setTransitionState(EMPTY_TRANSITION);
 		setPlaybackState("idle");
 		cancelAnimationFrame(rafRef.current);
 		setPlayhead(0);
 		setCurrentTimeDisplay(0);
 		activeClipIdRef.current = null;
-	}, [setPlayhead]);
+		activeSlotRef.current = "A";
+	}, [setPlayhead, getActiveVideo, getStandbyVideo]);
 
 	const togglePlayPause = useCallback(() => {
 		if (playbackState === "playing") pause();
@@ -238,12 +374,19 @@ export function useVideoPlayer() {
 
 	const seekTo = useCallback(
 		async (ms: number) => {
-			const video = videoRef.current;
+			const video = getActiveVideo();
 			if (!video || clips.length === 0) return;
+
+			// Cancel any transition
+			transitionRef.current = null;
+			setTransitionState(EMPTY_TRANSITION);
+			getStandbyVideo()?.pause();
+
 			const clamped = Math.max(0, Math.min(ms, totalDurationMs));
 			const target = resolvePlayheadToClip(clamped, clips);
 			if (!target) return;
-			const ok = await loadClipSource(video, target.clip, target.offsetMs);
+			activeClipIdRef.current = target.clip.clip_id;
+			const ok = await loadClipInto(video, target.clip, target.offsetMs);
 			if (!ok) return;
 			setSelectedClip(target.clip.clip_id);
 			setPlayhead(clamped);
@@ -254,17 +397,19 @@ export function useVideoPlayer() {
 				video.play().catch(() => {});
 			}
 		},
-		[clips, totalDurationMs, loadClipSource, setPlayhead, setSelectedClip, volume, playbackRate],
+		[clips, totalDurationMs, loadClipInto, setPlayhead, setSelectedClip, volume, playbackRate, getActiveVideo, getStandbyVideo],
 	);
 
 	const setVolume = useCallback((v: number) => {
 		setVolumeState(v);
-		if (videoRef.current) videoRef.current.volume = v;
+		if (videoARef.current) videoARef.current.volume = v;
+		if (videoBRef.current) videoBRef.current.volume = v;
 	}, []);
 
 	const setPlaybackRate = useCallback((rate: number) => {
 		setPlaybackRateState(rate);
-		if (videoRef.current) videoRef.current.playbackRate = rate;
+		if (videoARef.current) videoARef.current.playbackRate = rate;
+		if (videoBRef.current) videoBRef.current.playbackRate = rate;
 	}, []);
 
 	useEffect(() => {
@@ -272,7 +417,10 @@ export function useVideoPlayer() {
 	}, []);
 
 	return {
-		videoRef,
+		videoARef,
+		videoBRef,
+		activeSlot: activeSlotRef,
+		transitionState,
 		playbackState,
 		currentTimeDisplay,
 		totalDurationMs,

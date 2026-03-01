@@ -42,6 +42,95 @@ const MAX_ZOOM_LEVEL = 6;
 const MIN_LABEL_SPACING_PX = 90;
 const MIN_TIMELINE_SECONDS = 60;
 const TRAILING_PADDING_SECONDS = 30;
+const TRACK_LABEL_WIDTH_PX = 32; // matches w-8 on track labels
+const DEFAULT_TRANSITION_DURATION_MS = 500;
+
+const TRANSITION_OPTIONS: { value: TransitionType; label: string; shortLabel: string }[] = [
+	{ value: "cut", label: "Cut", shortLabel: "Cut" },
+	{ value: "crossfade", label: "Crossfade", shortLabel: "XFade" },
+	{ value: "dissolve", label: "Dissolve", shortLabel: "Diss" },
+	{ value: "fade-to-black", label: "Fade to Black", shortLabel: "F\u2192B" },
+	{ value: "fade-to-white", label: "Fade to White", shortLabel: "F\u2192W" },
+	{ value: "wipe-left", label: "Wipe Left", shortLabel: "W\u2190" },
+	{ value: "wipe-right", label: "Wipe Right", shortLabel: "W\u2192" },
+	{ value: "slide-left", label: "Slide Left", shortLabel: "S\u2190" },
+	{ value: "slide-right", label: "Slide Right", shortLabel: "S\u2192" },
+];
+
+// Pixel width of a transition indicator between clips (resting state)
+const TRANSITION_CUT_PX = 6;        // w-1.5
+const TRANSITION_ACTIVE_PX = 20;     // w-5 (non-cut transition)
+const TRANSITION_SELECTED_PX = 28;   // w-7 (selected)
+
+function getTransitionWidthPx(
+	clip: PaperEditClip,
+	index: number,
+	selectedTransitionClipId: string | null,
+): number {
+	if (index <= 0) return 0; // first clip has no transition before it
+	if (selectedTransitionClipId === clip.clip_id) return TRANSITION_SELECTED_PX;
+	if (clip.transition && clip.transition !== "cut") return TRANSITION_ACTIVE_PX;
+	return TRANSITION_CUT_PX;
+}
+
+// Sum of all transition indicator px before a given time on the timeline
+function getTransitionOffsetAtMs(
+	playheadMs: number,
+	clips: PaperEditClip[],
+	selectedTransitionClipId: string | null,
+): number {
+	let cursor = 0;
+	let offsetPx = 0;
+	for (let i = 0; i < clips.length; i++) {
+		const trPx = getTransitionWidthPx(clips[i], i, selectedTransitionClipId);
+		const dur = clips[i].out_ms - clips[i].in_ms;
+		if (playheadMs <= cursor) break;
+		// playhead is within or past this clip, add the transition gap before it
+		offsetPx += trPx;
+		cursor += dur;
+	}
+	return offsetPx;
+}
+
+// Total transition px across all clips (for computing total visual width)
+function getTotalTransitionPx(
+	clips: PaperEditClip[],
+	selectedTransitionClipId: string | null,
+): number {
+	let total = 0;
+	for (let i = 1; i < clips.length; i++) {
+		total += getTransitionWidthPx(clips[i], i, selectedTransitionClipId);
+	}
+	return total;
+}
+
+// Reverse mapping: given a pixel x position (relative to clip area start),
+// convert back to timeline ms accounting for transition indicator gaps
+function pixelToMs(
+	xPx: number,
+	pxPerSecond: number,
+	clips: PaperEditClip[],
+	selectedTransitionClipId: string | null,
+): number {
+	let cursor = 0;
+	let pixelCursor = 0;
+	for (let i = 0; i < clips.length; i++) {
+		const trPx = getTransitionWidthPx(clips[i], i, selectedTransitionClipId);
+		// If the click is within the transition gap, snap to the cursor time
+		if (xPx < pixelCursor + trPx) return cursor;
+		pixelCursor += trPx;
+		const dur = clips[i].out_ms - clips[i].in_ms;
+		const clipPx = (dur / 1000) * pxPerSecond;
+		if (xPx < pixelCursor + clipPx) {
+			// Within this clip
+			return cursor + ((xPx - pixelCursor) / pxPerSecond) * 1000;
+		}
+		pixelCursor += clipPx;
+		cursor += dur;
+	}
+	// Past last clip — extrapolate
+	return cursor + ((xPx - pixelCursor) / pxPerSecond) * 1000;
+}
 
 function clamp(value: number, min: number, max: number) {
 	return Math.min(max, Math.max(min, value));
@@ -71,7 +160,7 @@ interface TimeRulerProps {
 	onSeek?: (ms: number) => void;
 }
 
-function TimeRuler({ timelineWidthPx, pxPerSecond, tickStepSeconds, onSeek }: TimeRulerProps) {
+function TimeRuler({ timelineWidthPx, pxPerSecond, tickStepSeconds, onSeek, clips, selectedTransitionClipId }: TimeRulerProps & { clips?: PaperEditClip[]; selectedTransitionClipId?: string | null }) {
 	const ticks = useMemo(() => {
 		const totalSeconds = timelineWidthPx / pxPerSecond;
 		const count = Math.floor(totalSeconds / tickStepSeconds) + 1;
@@ -81,21 +170,24 @@ function TimeRuler({ timelineWidthPx, pxPerSecond, tickStepSeconds, onSeek }: Ti
 	const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
 		if (!onSeek) return;
 		const rect = e.currentTarget.getBoundingClientRect();
-		const x = e.clientX - rect.left;
-		onSeek(Math.max(0, (x / pxPerSecond) * 1000));
+		const x = e.clientX - rect.left - TRACK_LABEL_WIDTH_PX;
+		const ms = clips && clips.length > 0
+			? pixelToMs(x, pxPerSecond, clips, selectedTransitionClipId ?? null)
+			: (x / pxPerSecond) * 1000;
+		onSeek(Math.max(0, ms));
 	};
 
 	return (
 		<div
 			className="relative h-6 border-b border-zinc-800 bg-zinc-900/30 min-w-full cursor-pointer"
-			style={{ width: `${timelineWidthPx}px` }}
+			style={{ width: `${TRACK_LABEL_WIDTH_PX + timelineWidthPx}px` }}
 			onClick={handleClick}
 		>
 			{ticks.map((seconds) => (
 				<div
 					key={seconds}
 					className="absolute top-0 bottom-0 border-l border-zinc-800/50 pl-1"
-					style={{ left: `${seconds * pxPerSecond}px` }}
+					style={{ left: `${TRACK_LABEL_WIDTH_PX + seconds * pxPerSecond}px` }}
 				>
 					<span className="text-[8px] font-mono text-zinc-600">
 						{formatTimecode(seconds * 1000)}
@@ -125,6 +217,7 @@ export function TimelineEditor({ onSeek }: TimelineEditorProps) {
 	const [trackViewportWidth, setTrackViewportWidth] = useState(0);
 	const [isDraggingPlayhead, setIsDraggingPlayhead] = useState(false);
 	const [activeDragId, setActiveDragId] = useState<string | null>(null);
+	const [selectedTransitionClipId, setSelectedTransitionClipId] = useState<string | null>(null);
 
 	// Inspector
 	const [inspectorDescription, setInspectorDescription] = useState("");
@@ -137,6 +230,9 @@ export function TimelineEditor({ onSeek }: TimelineEditorProps) {
 	);
 
 	const selectedClip = paperEdit?.clips.find((c) => c.clip_id === selectedClipId);
+	const transitionClip = selectedTransitionClipId ? paperEdit?.clips.find((c) => c.clip_id === selectedTransitionClipId) ?? null : null;
+	const transitionClipIndex = selectedTransitionClipId && paperEdit ? paperEdit.clips.findIndex((c) => c.clip_id === selectedTransitionClipId) : -1;
+	const prevTransitionClip = transitionClipIndex > 0 && paperEdit ? paperEdit.clips[transitionClipIndex - 1] ?? null : null;
 
 	useEffect(() => {
 		if (selectedClip) {
@@ -187,6 +283,22 @@ export function TimelineEditor({ onSeek }: TimelineEditorProps) {
 			}
 		},
 		[selectedClipId, updateClip],
+	);
+
+	const handleTransitionTypeChange = useCallback(
+		(clipId: string, type: TransitionType) => {
+			updateClip(clipId, { transition: type });
+			KinetographAPI.updateClip(clipId, { transition: type }).catch(() => {});
+		},
+		[updateClip],
+	);
+
+	const handleTransitionDurationChange = useCallback(
+		(clipId: string, durationMs: number) => {
+			updateClip(clipId, { transition_duration_ms: durationMs });
+			KinetographAPI.updateClip(clipId, { transition_duration_ms: durationMs }).catch(() => {});
+		},
+		[updateClip],
 	);
 
 	const handleTrimClip = useCallback(
@@ -241,10 +353,14 @@ export function TimelineEditor({ onSeek }: TimelineEditorProps) {
 		);
 		const totalDurationMs = newClips.reduce((s, c) => s + (c.out_ms - c.in_ms), 0);
 
-		useKinetographStore.setState({
+		useKinetographStore.setState((state) => ({
 			paperEdit: { ...paperEdit, clips: newClips, total_duration_ms: totalDurationMs },
 			selectedClipId: clipB.clip_id,
-		});
+			undoStack: state.paperEdit
+				? [structuredClone(state.paperEdit), ...state.undoStack].slice(0, 50)
+				: state.undoStack,
+			redoStack: [],
+		}));
 	}, [paperEdit, selectedClipId, playheadMs]);
 
 	const applyZoom = useCallback(
@@ -302,11 +418,14 @@ export function TimelineEditor({ onSeek }: TimelineEditorProps) {
 		(e: React.PointerEvent) => {
 			if (!isDraggingPlayhead || !trackViewportRef.current) return;
 			const rect = trackViewportRef.current.getBoundingClientRect();
-			const x = e.clientX - rect.left + trackViewportRef.current.scrollLeft;
-			const ms = Math.max(0, (x / (BASE_PIXELS_PER_SECOND * zoomLevel)) * 1000);
-			onSeek?.(ms);
+			const x = e.clientX - rect.left + trackViewportRef.current.scrollLeft - TRACK_LABEL_WIDTH_PX;
+			const currentClips = paperEdit?.clips ?? [];
+			const ms = currentClips.length > 0
+				? pixelToMs(x, BASE_PIXELS_PER_SECOND * zoomLevel, currentClips, selectedTransitionClipId)
+				: (x / (BASE_PIXELS_PER_SECOND * zoomLevel)) * 1000;
+			onSeek?.(Math.max(0, ms));
 		},
-		[isDraggingPlayhead, zoomLevel, onSeek],
+		[isDraggingPlayhead, zoomLevel, onSeek, paperEdit?.clips, selectedTransitionClipId],
 	);
 
 	const handlePlayheadPointerUp = useCallback(() => {
@@ -325,10 +444,15 @@ export function TimelineEditor({ onSeek }: TimelineEditorProps) {
 
 	useEffect(() => {
 		const onKeyDown = (event: KeyboardEvent) => {
-			if (!selectedClipId) return;
 			const target = event.target as HTMLElement | null;
 			if (target?.tagName === "INPUT" || target?.tagName === "TEXTAREA" || target?.isContentEditable) return;
 
+			if (event.key === "Escape") {
+				setSelectedTransitionClipId(null);
+				setSelectedClip(null);
+			}
+
+			if (!selectedClipId) return;
 			if (event.key === "Delete" || event.key === "Backspace") {
 				event.preventDefault();
 				deleteClip(selectedClipId);
@@ -340,7 +464,7 @@ export function TimelineEditor({ onSeek }: TimelineEditorProps) {
 		};
 		window.addEventListener("keydown", onKeyDown);
 		return () => window.removeEventListener("keydown", onKeyDown);
-	}, [deleteClip, selectedClipId, handleSplitAtPlayhead]);
+	}, [deleteClip, selectedClipId, handleSplitAtPlayhead, setSelectedClip]);
 
 	const sequenceDurationMs = useMemo(() => {
 		if (!paperEdit) return 0;
@@ -356,9 +480,19 @@ export function TimelineEditor({ onSeek }: TimelineEditorProps) {
 		return Math.max(MIN_TIMELINE_SECONDS, fromClips, fromViewport);
 	}, [effectiveDurationMs, pxPerSecond, trackViewportWidth]);
 
-	const timelineWidthPx = Math.max(trackViewportWidth, Math.ceil(timelineDurationSeconds * pxPerSecond));
+	const totalTransitionPx = useMemo(() => {
+		if (!paperEdit) return 0;
+		return getTotalTransitionPx(paperEdit.clips, selectedTransitionClipId);
+	}, [paperEdit, selectedTransitionClipId]);
+
+	const timelineWidthPx = Math.max(trackViewportWidth, Math.ceil(timelineDurationSeconds * pxPerSecond) + totalTransitionPx);
 	const tickStepSeconds = getTickStepSeconds(pxPerSecond);
-	const playheadLeftPx = (playheadMs / 1000) * pxPerSecond;
+
+	const transitionOffsetPx = useMemo(() => {
+		if (!paperEdit) return 0;
+		return getTransitionOffsetAtMs(playheadMs, paperEdit.clips, selectedTransitionClipId);
+	}, [paperEdit, playheadMs, selectedTransitionClipId]);
+	const playheadLeftPx = (playheadMs / 1000) * pxPerSecond + transitionOffsetPx;
 
 	const activeDragClip = activeDragId ? paperEdit?.clips.find((c) => c.clip_id === activeDragId) : null;
 
@@ -433,6 +567,8 @@ export function TimelineEditor({ onSeek }: TimelineEditorProps) {
 					pxPerSecond={pxPerSecond}
 					tickStepSeconds={tickStepSeconds}
 					onSeek={onSeek}
+					clips={paperEdit?.clips}
+					selectedTransitionClipId={selectedTransitionClipId}
 				/>
 
 				{/* Playhead */}
@@ -441,7 +577,7 @@ export function TimelineEditor({ onSeek }: TimelineEditorProps) {
 						"absolute top-0 bottom-0 w-px z-30",
 						isDraggingPlayhead ? "bg-blue-400 shadow-[0_0_8px_rgba(59,130,246,0.6)]" : "bg-blue-500 shadow-[0_0_4px_rgba(59,130,246,0.4)]",
 					)}
-					style={{ left: `${playheadLeftPx}px` }}
+					style={{ left: `${TRACK_LABEL_WIDTH_PX + playheadLeftPx}px` }}
 				>
 					<div
 						onPointerDown={handlePlayheadPointerDown}
@@ -467,17 +603,52 @@ export function TimelineEditor({ onSeek }: TimelineEditorProps) {
 										strategy={horizontalListSortingStrategy}
 									>
 										<div className="flex items-center">
-											{paperEdit.clips.map((clip) => (
-												<TimelineClip
-													key={clip.clip_id}
-													clip={clip}
-													isSelected={selectedClipId === clip.clip_id}
-													pxPerSecond={pxPerSecond}
-													onClick={() => setSelectedClip(clip.clip_id)}
-													onDelete={() => deleteClip(clip.clip_id)}
-													onTrim={(edge, deltaMs) => handleTrimClip(clip.clip_id, edge, deltaMs)}
-												/>
-											))}
+										{paperEdit.clips.flatMap((clip, i) => [
+											...(i > 0 ? [
+												<button
+													key={`tr-${clip.clip_id}`}
+													onClick={(e) => {
+														e.stopPropagation();
+														setSelectedTransitionClipId(selectedTransitionClipId === clip.clip_id ? null : clip.clip_id);
+														setSelectedClip(null);
+													}}
+													className={cn(
+														"shrink-0 flex items-center justify-center h-16 group cursor-pointer transition-all",
+														selectedTransitionClipId === clip.clip_id
+															? "w-7 bg-blue-500/15 border-x border-blue-500/40 rounded"
+															: clip.transition && clip.transition !== "cut"
+																? "w-5 hover:bg-purple-500/10 rounded"
+																: "w-1.5 hover:w-5 hover:bg-zinc-800/50",
+													)}
+													title={`${TRANSITION_OPTIONS.find((t) => t.value === (clip.transition || "cut"))?.label ?? "Cut"}${clip.transition_duration_ms ? ` \u00b7 ${clip.transition_duration_ms}ms` : ""}`}
+												>
+													{(clip.transition && clip.transition !== "cut") || selectedTransitionClipId === clip.clip_id ? (
+														<div className="flex flex-col items-center gap-0.5">
+															<div className={cn(
+																"w-2 h-2 rounded-sm rotate-45 border transition-colors",
+																selectedTransitionClipId === clip.clip_id
+																	? "bg-blue-500/60 border-blue-400"
+																	: "bg-purple-500/40 border-purple-400/40",
+															)} />
+															<span className="text-[5px] font-bold text-zinc-500 group-hover:text-zinc-300 whitespace-nowrap leading-none">
+																{TRANSITION_OPTIONS.find((t) => t.value === (clip.transition || "cut"))?.shortLabel ?? "Cut"}
+															</span>
+														</div>
+													) : (
+														<div className="w-px h-8 border-l border-dashed border-zinc-700 group-hover:border-zinc-500 transition-colors" />
+													)}
+												</button>,
+											] : []),
+											<TimelineClip
+												key={clip.clip_id}
+												clip={clip}
+												isSelected={selectedClipId === clip.clip_id}
+												pxPerSecond={pxPerSecond}
+												onClick={() => { setSelectedClip(clip.clip_id); setSelectedTransitionClipId(null); }}
+												onDelete={() => deleteClip(clip.clip_id)}
+												onTrim={(edge, deltaMs) => handleTrimClip(clip.clip_id, edge, deltaMs)}
+											/>,
+										])}
 										</div>
 									</SortableContext>
 									<DragOverlay dropAnimation={null}>
@@ -601,6 +772,85 @@ export function TimelineEditor({ onSeek }: TimelineEditorProps) {
 									{isSavingInspector ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
 									Apply
 								</button>
+							</div>
+						</div>
+					</motion.div>
+				)}
+			</AnimatePresence>
+
+			{/* Transition Inspector */}
+			<AnimatePresence>
+				{selectedTransitionClipId && transitionClip && (
+					<motion.div
+						initial={{ opacity: 0, y: 6 }}
+						animate={{ opacity: 1, y: 0 }}
+						exit={{ opacity: 0, y: 6 }}
+						className="rounded border border-zinc-800 bg-zinc-900 p-3"
+					>
+						<div className="flex items-center justify-between mb-3">
+							<div className="flex items-center gap-3">
+								<div className="w-2 h-2 rounded-sm rotate-45 bg-purple-500/60 border border-purple-400" />
+								<h3 className="text-[10px] font-semibold text-zinc-200">
+									Transition{prevTransitionClip ? `: ${prevTransitionClip.source_file} \u2192 ${transitionClip.source_file}` : ""}
+								</h3>
+								<span className="text-[9px] font-mono text-zinc-500">
+									{TRANSITION_OPTIONS.find((t) => t.value === (transitionClip.transition || "cut"))?.label ?? "Cut"}
+									{transitionClip.transition && transitionClip.transition !== "cut" && ` \u00b7 ${transitionClip.transition_duration_ms ?? DEFAULT_TRANSITION_DURATION_MS}ms`}
+								</span>
+							</div>
+							<button onClick={() => setSelectedTransitionClipId(null)} className="text-zinc-600 hover:text-zinc-300 transition-colors">
+								<XCircle className="h-3.5 w-3.5" />
+							</button>
+						</div>
+
+						<div className="grid grid-cols-2 gap-4">
+							{/* Type picker */}
+							<div className="flex flex-col gap-1.5">
+								<label className="text-[9px] font-medium text-zinc-500">Type</label>
+								<div className="grid grid-cols-3 gap-1">
+									{TRANSITION_OPTIONS.map((opt) => (
+										<button
+											key={opt.value}
+											onClick={() => handleTransitionTypeChange(selectedTransitionClipId, opt.value)}
+											className={cn(
+												"rounded border px-1.5 py-1.5 text-[8px] font-semibold transition-all text-center",
+												(transitionClip.transition || "cut") === opt.value
+													? "border-blue-500 bg-blue-500/15 text-blue-400"
+													: "border-zinc-800 bg-zinc-800/30 text-zinc-500 hover:border-zinc-600 hover:text-zinc-300",
+											)}
+										>
+											{opt.label}
+										</button>
+									))}
+								</div>
+							</div>
+
+							{/* Duration */}
+							<div className="flex flex-col gap-1.5">
+								<label className="text-[9px] font-medium text-zinc-500">
+									Duration
+									<span className="ml-1 font-mono text-zinc-400">
+										{transitionClip.transition_duration_ms ?? DEFAULT_TRANSITION_DURATION_MS}ms
+									</span>
+								</label>
+								<input
+									type="range"
+									min={100}
+									max={2000}
+									step={50}
+									value={transitionClip.transition_duration_ms ?? DEFAULT_TRANSITION_DURATION_MS}
+									onChange={(e) => handleTransitionDurationChange(selectedTransitionClipId, Number(e.target.value))}
+									className="w-full accent-blue-500 h-1.5 bg-zinc-800 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-500"
+									disabled={!transitionClip.transition || transitionClip.transition === "cut"}
+								/>
+								<div className="flex justify-between text-[7px] text-zinc-600 font-mono">
+									<span>100ms</span>
+									<span>1000ms</span>
+									<span>2000ms</span>
+								</div>
+								{(!transitionClip.transition || transitionClip.transition === "cut") && (
+									<p className="text-[8px] text-zinc-600 italic">Duration only applies to non-cut transitions</p>
+								)}
 							</div>
 						</div>
 					</motion.div>

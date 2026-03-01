@@ -45,7 +45,7 @@ export const AgentMap: Record<Phase, string | null> = {
 };
 
 export type ClipType = 'a-roll' | 'b-roll' | 'synth';
-export type TransitionType = 'cut' | 'crossfade';
+export type TransitionType = 'cut' | 'crossfade' | 'dissolve' | 'fade-to-black' | 'fade-to-white' | 'wipe-left' | 'wipe-right' | 'slide-left' | 'slide-right';
 
 export interface RawAsset {
   id: string;
@@ -99,6 +99,7 @@ export interface PaperEditClip {
   clip_type: ClipType;
   overlay_text?: string;
   transition?: TransitionType;
+  transition_duration_ms?: number;
   search_query?: string;
   description: string;
 }

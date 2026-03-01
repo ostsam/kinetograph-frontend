@@ -57,9 +57,14 @@ export default function EditorPage() {
 
 	const setAssets = useKinetographStore((s) => s.setAssets);
 	const assets = useKinetographStore((s) => s.assets);
+	const undo = useKinetographStore((s) => s.undo);
+	const redo = useKinetographStore((s) => s.redo);
 
 	const {
-		videoRef,
+		videoARef,
+		videoBRef,
+		activeSlot,
+		transitionState,
 		playbackState,
 		currentTimeDisplay,
 		totalDurationMs,
@@ -84,8 +89,18 @@ export default function EditorPage() {
 			const tag = (e.target as HTMLElement)?.tagName;
 			if (tag === "INPUT" || tag === "TEXTAREA") return;
 
-			if (e.key === " ") { e.preventDefault(); togglePlayPause(); }
-			else if (e.key === "Escape") { stop(); }
+			// Meta shortcuts
+			if ((e.metaKey || e.ctrlKey) && e.key === "z" && !e.shiftKey) {
+				e.preventDefault(); undo();
+			}
+			else if ((e.metaKey || e.ctrlKey) && e.key === "z" && e.shiftKey) {
+				e.preventDefault(); redo();
+			}
+			else if ((e.metaKey || e.ctrlKey) && e.key === "s") {
+				e.preventDefault(); setShowExportPanel(true);
+			}
+			else if (e.key === " ") { e.preventDefault(); togglePlayPause(); }
+			else if (e.key === "Escape") { stop(); setShowExportPanel(false); }
 			// J/K/L shuttle
 			else if (e.key === "j") { seekTo(Math.max(0, currentTimeDisplay - 5000)); }
 			else if (e.key === "k") { togglePlayPause(); }
@@ -105,7 +120,7 @@ export default function EditorPage() {
 		};
 		window.addEventListener("keydown", onKeyDown);
 		return () => window.removeEventListener("keydown", onKeyDown);
-	}, [togglePlayPause, stop, seekTo, currentTimeDisplay, totalDurationMs]);
+	}, [togglePlayPause, stop, seekTo, currentTimeDisplay, totalDurationMs, undo, redo]);
 
 	const toggleSidebar = () => {
 		const panel = leftPanelRef.current;
@@ -257,15 +272,75 @@ export default function EditorPage() {
 								<div className="flex h-full flex-col overflow-hidden bg-[#0e0e10]">
 									<div className="flex flex-1 items-center justify-center p-4">
 										<div className="relative h-full w-full overflow-hidden border border-zinc-800/50 bg-black">
-											<video
-												ref={videoRef}
-												className="absolute inset-0 h-full w-full object-contain"
-												playsInline
-												preload="metadata"
-											/>
+										{/* Video A */}
+										<video
+											ref={videoARef}
+											className="absolute inset-0 h-full w-full object-contain"
+											style={{
+												zIndex: activeSlot.current === "A" ? 2 : 1,
+												opacity: transitionState.active
+													? (activeSlot.current === "A" ? 1 - transitionState.progress : transitionState.progress)
+													: (activeSlot.current === "A" ? 1 : 0),
+											}}
+											playsInline
+											preload="metadata"
+										/>
+										{/* Video B */}
+										<video
+											ref={videoBRef}
+											className="absolute inset-0 h-full w-full object-contain"
+											style={{
+												zIndex: activeSlot.current === "B" ? 2 : 1,
+												opacity: transitionState.active
+													? (activeSlot.current === "B" ? 1 - transitionState.progress : transitionState.progress)
+													: (activeSlot.current === "B" ? 1 : 0),
+											}}
+											playsInline
+											preload="metadata"
+										/>
 
-											{playbackState === "playing" && (
-												<div className="absolute top-2 left-2 flex items-center gap-1 bg-black/60 backdrop-blur-sm px-1.5 py-0.5 rounded pointer-events-none">
+										{/* Fade-to-black / fade-to-white overlay */}
+										{transitionState.active && (transitionState.type === "fade-to-black" || transitionState.type === "fade-to-white") && (
+											<div
+												className="absolute inset-0 z-10 pointer-events-none"
+												style={{
+													background: transitionState.type === "fade-to-black" ? "black" : "white",
+													opacity: transitionState.progress < 0.5
+														? transitionState.progress * 2
+														: 2 - transitionState.progress * 2,
+												}}
+											/>
+										)}
+
+										{/* Wipe overlay (left/right) */}
+										{transitionState.active && (transitionState.type === "wipe-left" || transitionState.type === "wipe-right") && (
+											<div
+												className="absolute inset-0 z-10 pointer-events-none overflow-hidden"
+											>
+												{/* The incoming video is revealed by a clip-path wipe */}
+												<div
+													className="absolute inset-0"
+													style={{
+														background: "black",
+														opacity: 0.08,
+														clipPath: transitionState.type === "wipe-right"
+															? `inset(0 ${(1 - transitionState.progress) * 100}% 0 0)`
+															: `inset(0 0 0 ${(1 - transitionState.progress) * 100}%)`,
+													}}
+												/>
+											</div>
+										)}
+
+										{/* Transition label */}
+										{transitionState.active && (
+											<div className="absolute top-2 right-2 z-20 flex items-center gap-1 bg-black/60 backdrop-blur-sm px-1.5 py-0.5 rounded pointer-events-none">
+												<div className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" />
+												<span className="text-[8px] font-medium text-zinc-300 capitalize">{transitionState.type.replace(/-/g, " ")}</span>
+											</div>
+										)}
+
+										{playbackState === "playing" && !transitionState.active && (
+											<div className="absolute top-2 left-2 z-20 flex items-center gap-1 bg-black/60 backdrop-blur-sm px-1.5 py-0.5 rounded pointer-events-none">
 													<div className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" />
 													<span className="text-[8px] font-medium text-zinc-300">PLAY</span>
 												</div>
