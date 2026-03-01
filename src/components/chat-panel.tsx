@@ -28,10 +28,12 @@ import {
 	Pencil,
 	Minus,
 	Plus,
+	Type,
+
 } from "lucide-react";
 import type { ChatMessage } from "@/types/chat";
 import { PHASE_DESCRIPTIONS, NODE_TO_AGENT } from "@/types/chat";
-import type { Phase, PaperEdit } from "@/types/kinetograph";
+import type { Phase, PaperEdit, CaptionStylePreset } from "@/types/kinetograph";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 //  CHAT PANEL — Cursor-like AI interface for video creation
@@ -77,39 +79,10 @@ export function ChatPanel({ onClose }: ChatPanelProps) {
 
 	// ─── Send message handler ─────────────────────────────────────────
 
-	const handleSend = useCallback(async () => {
-		const text = input.trim();
-		if (!text || isProcessing) return;
-
-		setInput("");
-		addUserMessage(text);
-
-		// If pipeline is already complete, treat as an edit request
-		if (phase === "complete" || (paperEdit && !pipelineActive)) {
-			setProcessing(true);
-			setPipelineActive(true);
-			try {
-				const res = await KinetographAPI.editPipeline({
-					instruction: text,
-				});
-				addSystemMessage(res.message || "✏️ Edit submitted — processing...");
-				// Pipeline runs in background — WS events will update UI and reset flags
-			} catch (err: unknown) {
-				const msg = err instanceof Error ? err.message : "Edit request failed.";
-				addSystemMessage(`❌ ${msg}`, "pipeline-error");
-				setProcessing(false);
-				setPipelineActive(false);
-			}
-			return;
-		}
-
-		// Otherwise, start a new pipeline run
-		setProcessing(true);
-		setPipelineActive(true);
+	const _startFreshRun = useCallback(async (text: string) => {
 		addSystemMessage(
 			"🚀 Starting pipeline... I'll process your footage and keep you updated.",
 		);
-
 		try {
 			const res = await KinetographAPI.runPipeline({
 				prompt: text,
@@ -144,6 +117,44 @@ export function ChatPanel({ onClose }: ChatPanelProps) {
 		setPipelineActive,
 		setPaperEdit,
 	]);
+
+const handleSend = useCallback(async () => {
+		const text = input.trim();
+		if (!text || isProcessing) return;
+
+		setInput("");
+		addUserMessage(text);
+		setProcessing(true);
+		setPipelineActive(true);
+
+		// If pipeline is already complete, treat as an edit request
+		if (phase === "complete" || (paperEdit && !pipelineActive)) {
+			try {
+				const res = await KinetographAPI.editPipeline({
+					instruction: text,
+				});
+				addSystemMessage(res.message || "✏️ Edit submitted — processing...");
+				// Pipeline runs in background — WS events will update UI and reset flags
+			} catch (err: unknown) {
+				// If the backend has no active session (e.g. server restarted),
+				// fall back to a fresh pipeline run instead of showing an error.
+				const status = (err as { response?: { status?: number } })?.response?.status;
+				if (status === 400) {
+					addSystemMessage("🔄 No active session — starting a fresh pipeline run...");
+					await _startFreshRun(text);
+				} else {
+					const msg = err instanceof Error ? err.message : "Edit request failed.";
+					addSystemMessage(`❌ ${msg}`, "pipeline-error");
+					setProcessing(false);
+					setPipelineActive(false);
+				}
+			}
+			return;
+		}
+
+		// Otherwise, start a new pipeline run
+		await _startFreshRun(text);
+	}, [input, isProcessing, phase, paperEdit, pipelineActive, addUserMessage, addSystemMessage, setProcessing, setPipelineActive, _startFreshRun]);
 
 	const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
 		if (e.key === "Enter" && !e.shiftKey) {
@@ -354,6 +365,8 @@ function MessageBubble({ message }: { message: ChatMessage }) {
 			);
 		case "approval-request":
 			return <ApprovalRequestMessage message={message} />;
+		case "caption-style-request":
+			return null; // Caption style is auto-selected by backend
 		case "approval-response":
 			return <AssistantMessage content={message.content} />;
 		case "pipeline-complete":
@@ -699,6 +712,109 @@ function ApprovalRequestMessage({ message }: { message: ChatMessage }) {
 }
 
 // ─── Pipeline complete message ────────────────────────────────────────────────
+
+function CaptionStylePickerMessage({ message }: { message: ChatMessage }) {
+	const [isSelecting, setIsSelecting] = useState(false);
+	const [selectedId, setSelectedId] = useState<string | null>(null);
+	const addSystemMessage = useChatStore((s) => s.addSystemMessage);
+
+	const styles = message.captionStyles || [];
+
+	const handleSelect = async (style: CaptionStylePreset) => {
+		if (isSelecting || selectedId) return;
+		setIsSelecting(true);
+		setSelectedId(style.id);
+		try {
+			await KinetographAPI.selectCaptionStyle(style.id);
+			addSystemMessage(`🎨 Caption style selected: **${style.name}** — burning captions...`);
+		} catch (err: unknown) {
+			const msg = err instanceof Error ? err.message : "Style selection failed.";
+			addSystemMessage(`❌ ${msg}`, "pipeline-error");
+			setSelectedId(null);
+		} finally {
+			setIsSelecting(false);
+		}
+	};
+
+	// Map style properties to preview colours (convert ASS &HAABBGGRR& → CSS)
+	const assToCss = (ass: string): string => {
+		// ASS: &HAABBGGRR& → extract BB, GG, RR
+		const hex = ass.replace(/&H/g, "").replace(/&/g, "").padStart(8, "0");
+		const a = parseInt(hex.slice(0, 2), 16);
+		const b = parseInt(hex.slice(2, 4), 16);
+		const g = parseInt(hex.slice(4, 6), 16);
+		const r = parseInt(hex.slice(6, 8), 16);
+		const alpha = ((255 - a) / 255).toFixed(2);
+		return `rgba(${r},${g},${b},${alpha})`;
+	};
+
+	return (
+		<div className="flex justify-start">
+			<div className="flex items-start gap-2 w-full max-w-[95%]">
+				<div className="w-5 h-5 rounded-full bg-cyan-500/20 flex items-center justify-center shrink-0 mt-0.5">
+					<Type className="h-2.5 w-2.5 text-cyan-400" />
+				</div>
+				<div className="flex-1 min-w-0 space-y-2">
+					<div className="bg-zinc-800/50 border border-cyan-500/20 rounded-xl rounded-tl-sm px-3 py-2">
+						<p className="text-[11px] text-zinc-300 leading-relaxed mb-3">
+							{message.content}
+						</p>
+
+						{/* Style cards grid */}
+						<div className="grid grid-cols-2 gap-2 mb-2">
+							{styles.map((style) => {
+								const isChosen = selectedId === style.id;
+								const activeColor = assToCss(style.active_color);
+								return (
+									<button
+										key={style.id}
+										onClick={() => handleSelect(style)}
+										disabled={isSelecting || !!selectedId}
+										className={cn(
+											"relative flex flex-col items-start gap-1 px-3 py-2.5 rounded-lg border text-left transition-all",
+											isChosen
+												? "border-cyan-500/50 bg-cyan-500/10 ring-1 ring-cyan-500/30"
+												: selectedId
+													? "border-zinc-800 bg-zinc-900/30 opacity-50 cursor-not-allowed"
+													: "border-zinc-700/50 bg-zinc-900/50 hover:border-cyan-500/30 hover:bg-cyan-500/5 cursor-pointer",
+										)}
+									>
+										{/* Preview line with coloured active word */}
+										<div className="flex items-center gap-1.5">
+											<span className="text-[13px]">{style.preview.split(" ")[0]}</span>
+											<span className="text-[11px] font-bold" style={{ color: activeColor }}>
+												Word
+											</span>
+											<span className="text-[11px] text-zinc-400">example text</span>
+										</div>
+										<span className="text-[10px] font-semibold text-zinc-300">
+											{style.name}
+										</span>
+										<span className="text-[9px] text-zinc-500 leading-tight">
+											{style.description}
+										</span>
+										{isChosen && (
+											<div className="absolute top-1.5 right-1.5">
+												<CheckCircle2 className="h-3.5 w-3.5 text-cyan-400" />
+											</div>
+										)}
+									</button>
+								);
+							})}
+						</div>
+
+						{selectedId && (
+							<div className="flex items-center gap-1 pt-1 border-t border-zinc-700/30 text-[10px] text-zinc-600">
+								<CheckCircle2 className="h-3 w-3" />
+								Style selected — captioner proceeding
+							</div>
+						)}
+					</div>
+				</div>
+			</div>
+		</div>
+	);
+}
 
 function PipelineCompleteMessage({ message }: { message: ChatMessage }) {
 	return (

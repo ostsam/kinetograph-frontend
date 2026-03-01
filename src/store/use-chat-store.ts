@@ -6,7 +6,7 @@ import type {
 	AgentActivity,
 	EditType,
 } from "@/types/chat";
-import type { Phase, PaperEdit, PipelineError } from "@/types/kinetograph";
+import type { Phase, PaperEdit, PipelineError, CaptionStylePreset } from "@/types/kinetograph";
 
 // ─── Unique ID generator ──────────────────────────────────────────────────────
 
@@ -52,6 +52,7 @@ interface ChatState {
 	addApprovalRequest: (paperEdit: PaperEdit) => string;
 	addPipelineComplete: (renderPath?: string, timelinePath?: string) => string;
 	addPipelineError: (errors: PipelineError[], content: string) => string;
+	addCaptionStyleRequest: (styles: CaptionStylePreset[]) => string;
 	addLoadingMessage: () => string;
 	removeLoadingMessages: () => void;
 
@@ -202,6 +203,24 @@ export const useChatStore = create<ChatState>((set, get) => ({
 					type: "pipeline-error" as ChatMessageType,
 					content,
 					errors,
+					timestamp: Date.now(),
+				},
+			],
+		}));
+		return id;
+	},
+
+	addCaptionStyleRequest: (styles) => {
+		const id = chatId();
+		set((state) => ({
+			messages: [
+				...state.messages,
+				{
+					id,
+					role: "assistant" as ChatRole,
+					type: "caption-style-request" as ChatMessageType,
+					content: "Choose a caption style for your video. The captioner will burn your selection into the final render.",
+					captionStyles: styles,
 					timestamp: Date.now(),
 				},
 			],

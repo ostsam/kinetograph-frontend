@@ -1,6 +1,6 @@
 // 💬 Chat system types for the AI agent interface
 
-import { Phase, PaperEdit, PipelineError, TransitionType } from "./kinetograph";
+import { Phase, PaperEdit, PipelineError, TransitionType, CaptionStylePreset } from "./kinetograph";
 
 // ─── Message Roles ─────────────────────────────────────────────────────────────
 
@@ -23,6 +23,7 @@ export type ChatMessageType =
   | "agent-update"
   | "approval-request"
   | "approval-response"
+  | "caption-style-request"
   | "pipeline-complete"
   | "pipeline-error"
   | "edit-request"
@@ -42,6 +43,9 @@ export interface ChatMessage {
 
   // Approval request payload
   paperEdit?: PaperEdit;
+
+  // Caption style picker payload
+  captionStyles?: CaptionStylePreset[];
 
   // Error payload
   errors?: PipelineError[];

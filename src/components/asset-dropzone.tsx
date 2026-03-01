@@ -4,7 +4,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { useKinetographStore } from "@/store/use-kinetograph-store";
 import { KinetographAPI } from "@/lib/api";
 import { createLocalAsset, isVideoFile } from "@/lib/local-asset";
-import { Loader2, Plus, Film, FolderOpen, Trash2, Search } from "lucide-react";
+import { Loader2, Plus, Film, FolderOpen, Trash2, Search, CheckSquare } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 export function AssetDropzone() {
@@ -14,7 +14,6 @@ export function AssetDropzone() {
 	const [pendingDeleteAssetId, setPendingDeleteAssetId] = useState<string | null>(null);
 	const [editingAssetId, setEditingAssetId] = useState<string | null>(null);
 	const [editingFileName, setEditingFileName] = useState("");
-	const [pendingFiles, setPendingFiles] = useState<File[] | null>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
 
 	const setAssets = useKinetographStore((s) => s.setAssets);
@@ -23,7 +22,11 @@ export function AssetDropzone() {
 	const deleteAsset = useKinetographStore((s) => s.deleteAsset);
 	const assets = useKinetographStore((s) => s.assets);
 	const selectedAssetId = useKinetographStore((s) => s.selectedAssetId);
+	const selectedAssetIds = useKinetographStore((s) => s.selectedAssetIds);
 	const selectedClipId = useKinetographStore((s) => s.selectedClipId);
+	const toggleAssetSelected = useKinetographStore((s) => s.toggleAssetSelected);
+	const selectAllByType = useKinetographStore((s) => s.selectAllByType);
+	const toggleAssetType = useKinetographStore((s) => s.toggleAssetType);
 	const setSelectedAsset = useKinetographStore((s) => s.setSelectedAsset);
 	const pendingDeleteAsset = assets.find((a) => a.id === pendingDeleteAssetId) ?? null;
 
@@ -32,13 +35,13 @@ export function AssetDropzone() {
 		: assets;
 
 	const handleUpload = useCallback(
-		async (files: File[], assetType: "a-roll" | "b-roll") => {
+		async (files: File[]) => {
 			const videoFiles = files.filter(isVideoFile);
 			if (videoFiles.length === 0) return;
 			setIsUploading(true);
 			try {
 				for (const file of videoFiles) {
-					await KinetographAPI.uploadAsset(file, assetType);
+					await KinetographAPI.uploadAsset(file, "b-roll");
 				}
 				const updated = await KinetographAPI.getAssets();
 				setAssets(updated.assets);
@@ -50,15 +53,6 @@ export function AssetDropzone() {
 			}
 		},
 		[addAssets, setAssets],
-	);
-
-	const promptAndUpload = useCallback(
-		(files: File[]) => {
-			const videoFiles = files.filter(isVideoFile);
-			if (videoFiles.length === 0) return;
-			setPendingFiles(videoFiles);
-		},
-		[],
 	);
 
 	const requestDeleteAsset = useCallback((assetId: string) => {
@@ -104,9 +98,9 @@ export function AssetDropzone() {
 		(e: React.DragEvent) => {
 			e.preventDefault();
 			setIsDragging(false);
-			promptAndUpload(Array.from(e.dataTransfer.files));
+			handleUpload(Array.from(e.dataTransfer.files));
 		},
-		[promptAndUpload],
+		[handleUpload],
 	);
 
 	return (
@@ -121,6 +115,14 @@ export function AssetDropzone() {
 					Import
 				</button>
 				<button
+					onClick={() => selectAllByType("a-roll")}
+					className="flex items-center gap-1.5 bg-emerald-900/30 hover:bg-emerald-800/40 px-2.5 py-1.5 rounded border border-emerald-700/40 text-[10px] font-medium text-emerald-300 transition-colors"
+					title="Select all A-Roll clips"
+				>
+					<CheckSquare className="h-3 w-3" />
+					A-Roll
+				</button>
+				<button
 					disabled={!selectedAssetId}
 					onClick={() => selectedAssetId && requestDeleteAsset(selectedAssetId)}
 					className="flex items-center gap-1.5 px-2 py-1.5 rounded border border-zinc-700 text-[10px] font-medium transition-colors disabled:opacity-30 bg-zinc-800 hover:bg-zinc-700"
@@ -128,7 +130,7 @@ export function AssetDropzone() {
 					<Trash2 className="h-3 w-3" />
 				</button>
 				<input type="file" ref={fileInputRef} className="hidden" multiple accept="video/*"
-					onChange={(e) => { promptAndUpload(Array.from(e.target.files || [])); e.target.value = ""; }} />
+					onChange={(e) => { handleUpload(Array.from(e.target.files || [])); e.target.value = ""; }} />
 			</div>
 
 			{/* Search */}
@@ -154,24 +156,36 @@ export function AssetDropzone() {
 				<div className="flex-1 overflow-y-auto custom-scrollbar">
 					<div className="flex flex-col">
 						<AnimatePresence mode="popLayout">
-							{filteredAssets.map((asset) => (
+							{filteredAssets.map((asset) => {
+								const isSelected = selectedAssetIds.has(asset.id);
+								return (
 								<motion.div
 									key={asset.id}
 									layout
 									initial={{ opacity: 0 }}
 									animate={{ opacity: 1 }}
+								>
+								<div
 									draggable={editingAssetId !== asset.id}
-									onClick={() => setSelectedAsset(asset.id)}
-									onDragStart={(event) => {
-										const dragEvent = event as unknown as React.DragEvent<HTMLDivElement>;
-										setSelectedAsset(asset.id);
-										dragEvent.dataTransfer.effectAllowed = "copy";
-										dragEvent.dataTransfer.setData("application/x-kinetograph-asset-id", asset.id);
-										dragEvent.dataTransfer.setData("text/plain", asset.file_name);
+									onClick={(e) => {
+										toggleAssetSelected(asset.id, e.metaKey || e.ctrlKey);
+									}}
+									onDragStart={(event: React.DragEvent<HTMLDivElement>) => {
+										const state = useKinetographStore.getState();
+										const ids = state.selectedAssetIds.has(asset.id)
+											? [...state.selectedAssetIds]
+											: [asset.id];
+										event.dataTransfer.effectAllowed = "copy";
+										event.dataTransfer.setData(
+											"application/x-kinetograph-asset-ids",
+											JSON.stringify(ids),
+										);
+										event.dataTransfer.setData("application/x-kinetograph-asset-id", asset.id);
+										event.dataTransfer.setData("text/plain", ids.length > 1 ? `${ids.length} clips` : asset.file_name);
 									}}
 									className={`group relative flex items-center gap-2.5 px-2 py-1.5 cursor-pointer transition-colors border-b border-zinc-800/30 ${
-										selectedAssetId === asset.id
-											? "bg-blue-500/10"
+										isSelected
+											? "bg-blue-500/10 ring-1 ring-inset ring-blue-500/20"
 											: "hover:bg-white/[0.03]"
 									}`}
 								>
@@ -216,15 +230,19 @@ export function AssetDropzone() {
 											</p>
 										)}
 										<div className="flex items-center gap-1.5 text-[8px] font-mono text-zinc-600">
-											<span className={`px-1 rounded ${
-												asset.asset_type === "a-roll"
-													? "bg-emerald-500/15 text-emerald-400"
-													: asset.asset_type === "b-roll-synth"
-													? "bg-purple-500/15 text-purple-400"
-													: "bg-blue-500/15 text-blue-400"
-											}`}>
+											<button
+												onClick={(e) => { e.stopPropagation(); toggleAssetType(asset.id); }}
+												className={`px-1 rounded cursor-pointer hover:brightness-125 transition-all ${
+													asset.asset_type === "a-roll"
+														? "bg-emerald-500/15 text-emerald-400"
+														: asset.asset_type === "b-roll-synth"
+														? "bg-purple-500/15 text-purple-400"
+														: "bg-blue-500/15 text-blue-400"
+												}`}
+												title="Click to toggle a-roll / b-roll"
+											>
 												{asset.asset_type === "b-roll-synth" ? "synth" : asset.asset_type}
-											</span>
+											</button>
 											<span>{asset.width}×{asset.height}</span>
 											<span className="opacity-30">·</span>
 											<span>{asset.fps}fps</span>
@@ -236,9 +254,18 @@ export function AssetDropzone() {
 									{isUploading && (
 										<Loader2 className="h-3 w-3 animate-spin text-blue-500/40 shrink-0" />
 									)}
-								</motion.div>
-							))}
-						</AnimatePresence>
+
+									{/* Multi-select indicator */}
+									{selectedAssetIds.size > 1 && isSelected && (
+										<div className="flex h-4 w-4 items-center justify-center rounded-sm bg-blue-500/30 text-blue-300 text-[8px] font-bold shrink-0">
+											✓
+										</div>
+									)}
+								</div>
+							</motion.div>
+							);
+						})}
+					</AnimatePresence>
 
 						{filteredAssets.length === 0 && !isUploading && (
 							<div className="flex flex-col items-center justify-center h-32 text-center px-6">
@@ -283,46 +310,15 @@ export function AssetDropzone() {
 					</div>
 				)}
 
-				{/* Asset type picker — shown when user drops / imports files */}
-				{pendingFiles && (
-					<div className="absolute inset-0 z-30 bg-black/70 backdrop-blur-[2px] flex items-center justify-center p-4">
-						<div className="w-full max-w-xs rounded border border-zinc-700 bg-zinc-900 p-4 shadow-xl">
-							<h3 className="text-xs font-semibold text-zinc-200">Import as…</h3>
-							<p className="mt-1.5 text-[10px] text-zinc-400 leading-relaxed">
-								{pendingFiles.length} file{pendingFiles.length !== 1 ? "s" : ""} selected. Choose the media type:
-							</p>
-							<div className="mt-3 flex flex-col gap-2">
-								<button
-									onClick={() => { const f = pendingFiles; setPendingFiles(null); handleUpload(f, "a-roll"); }}
-									className="w-full rounded border border-emerald-700/50 bg-emerald-600/10 px-3 py-2 text-left hover:bg-emerald-600/20 transition-colors"
-								>
-									<span className="text-[11px] font-semibold text-emerald-300">A-Roll</span>
-									<span className="block text-[9px] text-zinc-500 mt-0.5">Primary footage — interviews, main content</span>
-								</button>
-								<button
-									onClick={() => { const f = pendingFiles; setPendingFiles(null); handleUpload(f, "b-roll"); }}
-									className="w-full rounded border border-blue-700/50 bg-blue-600/10 px-3 py-2 text-left hover:bg-blue-600/20 transition-colors"
-								>
-									<span className="text-[11px] font-semibold text-blue-300">B-Roll</span>
-									<span className="block text-[9px] text-zinc-500 mt-0.5">Supplementary footage — cutaways, overlays</span>
-								</button>
-							</div>
-							<div className="mt-2 flex justify-end">
-								<button
-									onClick={() => setPendingFiles(null)}
-									className="rounded border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-[10px] font-medium text-zinc-300 hover:bg-zinc-700"
-								>
-									Cancel
-								</button>
-							</div>
-						</div>
-					</div>
-				)}
 			</div>
 
-			{/* Stats footer */}
+			{/* Selection info footer */}
 			<div className="flex items-center justify-between text-[9px] font-mono text-zinc-600 px-1">
-				<span>{assets.length} clip{assets.length !== 1 ? "s" : ""}</span>
+				<span>
+					{selectedAssetIds.size > 1
+						? `${selectedAssetIds.size} selected`
+						: `${assets.length} clip${assets.length !== 1 ? "s" : ""}`}
+				</span>
 				<span>{(assets.reduce((s, a) => s + a.duration_ms, 0) / 1000).toFixed(1)}s total</span>
 			</div>
 		</div>

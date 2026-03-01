@@ -12,6 +12,7 @@ import {
 	PaperEditClip,
 	EditRequest,
 	EditResponse,
+	CaptionStylePreset,
 } from "@/types/kinetograph";
 
 const api = ky.create({
@@ -71,6 +72,13 @@ export const KinetographAPI = {
 	// Post-pipeline edit
 	editPipeline: (request: EditRequest) =>
 		api.post("pipeline/edit", { json: request }).json<EditResponse>(),
+
+	// Caption style selection
+	getCaptionStyles: () =>
+		api.get("pipeline/caption-styles").json<{ styles: CaptionStylePreset[] }>(),
+
+	selectCaptionStyle: (styleId: string) =>
+		api.post("pipeline/caption-style", { json: { style_id: styleId } }).json<{ status: string; style_id: string; style_name: string }>(),
 
 	deleteClip: (clipId: string) =>
 		api

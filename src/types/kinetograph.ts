@@ -49,6 +49,51 @@ export const AgentMap: Record<Phase, string | null> = {
 export type ClipType = 'a-roll' | 'b-roll' | 'synth';
 export type TransitionType = 'cut' | 'crossfade' | 'dissolve' | 'fade-to-black' | 'fade-to-white' | 'wipe-left' | 'wipe-right' | 'slide-left' | 'slide-right';
 
+// ─── Preview Resolution ────────────────────────────────────────────────────────
+
+export type PreviewResolution = '16:9' | '9:16' | '4:3' | '1:1';
+
+export const PREVIEW_RESOLUTIONS: Record<PreviewResolution, { label: string; width: number; height: number }> = {
+  '16:9': { label: '16:9 Landscape', width: 1920, height: 1080 },
+  '9:16': { label: '9:16 Vertical', width: 1080, height: 1920 },
+  '4:3':  { label: '4:3 Standard',  width: 1440, height: 1080 },
+  '1:1':  { label: '1:1 Square',    width: 1080, height: 1080 },
+};
+
+// ─── Overlay (V2) clip types ───────────────────────────────────────────────────
+
+export type OverlayPreset = 'pip-br' | 'pip-bl' | 'pip-tr' | 'pip-tl' | 'pip-center' | 'side-by-side' | 'custom';
+
+export interface OverlayTransform {
+  x: number;          // 0..100 — percentage of frame width for left edge
+  y: number;          // 0..100 — percentage of frame height for top edge
+  width: number;      // 0..100 — percentage of frame width
+  height: number;     // 0..100 — percentage of frame height
+  opacity: number;    // 0..1
+  borderRadius: number; // px
+}
+
+export interface OverlayClip {
+  id: string;
+  sourceAssetId: string;
+  sourceFile: string;
+  inMs: number;
+  outMs: number;
+  timelineStartMs: number; // where on the timeline this overlay begins
+  transform: OverlayTransform;
+  preset: OverlayPreset;
+}
+
+export const OVERLAY_PRESETS: Record<OverlayPreset, OverlayTransform> = {
+  'pip-br':      { x: 65, y: 60, width: 30, height: 30, opacity: 1, borderRadius: 8 },
+  'pip-bl':      { x: 5,  y: 60, width: 30, height: 30, opacity: 1, borderRadius: 8 },
+  'pip-tr':      { x: 65, y: 5,  width: 30, height: 30, opacity: 1, borderRadius: 8 },
+  'pip-tl':      { x: 5,  y: 5,  width: 30, height: 30, opacity: 1, borderRadius: 8 },
+  'pip-center':  { x: 25, y: 25, width: 50, height: 50, opacity: 1, borderRadius: 0 },
+  'side-by-side':{ x: 50, y: 0,  width: 50, height: 100,opacity: 1, borderRadius: 0 },
+  'custom':      { x: 10, y: 10, width: 40, height: 40, opacity: 1, borderRadius: 0 },
+};
+
 export interface RawAsset {
   id: string;
   file_name: string;
@@ -111,6 +156,20 @@ export interface PaperEdit {
   total_duration_ms: number;
   clips: PaperEditClip[];
   music_prompt?: string;
+  music_path?: string;    // path to background music file (from sound engineer)
+}
+
+// ─── Track types for multi-track timeline ──────────────────────────────────────
+
+export type TrackType = 'video' | 'audio';
+
+export interface Track {
+  id: string;
+  label: string;         // e.g. "V1", "V2", "A1", "A2"
+  type: TrackType;
+  muted: boolean;
+  volume: number;         // 0..1 — only meaningful for audio tracks
+  locked: boolean;
 }
 
 export interface PipelineError {
@@ -172,8 +231,27 @@ export type WSEvent =
   | { type: 'pipeline_started'; thread_id: string }
   | { type: 'phase_update'; node: string; phase: Phase; timestamp: string; errors: PipelineError[] }
   | { type: 'awaiting_approval'; paper_edit: PaperEdit }
-  | { type: 'pipeline_complete'; phase: Phase; render_path?: string; timeline_path?: string }
+  | { type: 'pipeline_complete'; phase: Phase; render_path?: string; timeline_path?: string; music_path?: string }
+  | { type: 'caption_style_options'; styles: CaptionStylePreset[] }
   | { type: 'pong' };
+
+// ─── Caption style presets ─────────────────────────────────────────────────────
+
+export interface CaptionStylePreset {
+  id: string;
+  name: string;
+  description: string;
+  preview: string;           // emoji + short label
+  font_name: string;
+  font_size: number;
+  active_color: string;      // ASS colour
+  inactive_color: string;
+  outline_color: string;
+  bg_color: string;
+  outline_size: number;
+  position: 'top' | 'center' | 'bottom';
+  border_style: number;
+}
 
 // ─── Edit types (post-pipeline) ────────────────────────────────────────────────
 

@@ -13,6 +13,7 @@ export function useKinetographWS() {
 	const setPaperEdit = useKinetographStore((s) => s.setPaperEdit);
 	const setAssets = useKinetographStore((s) => s.setAssets);
 	const setRenderUrl = useKinetographStore((s) => s.setRenderUrl);
+	const setMusicPath = useKinetographStore((s) => s.setMusicPath);
 
 	const connectRef = useRef<() => void>(() => {});
 
@@ -109,11 +110,25 @@ export function useKinetographWS() {
 							});
 						}
 
-						// Only add chat messages for COMPLETED phases.
-						// In-progress phases are shown via the Agent Activity Bar,
-						// so we don't create duplicate spinning messages in the chat.
+						// Add or update chat messages for agent phases.
+						// In-progress phases get a message that is updated in-place
+						// when the completion phase arrives, so no frozen spinners.
 						chat.removeLoadingMessages();
 						if (isCompleted && !isRecoverableProducerRevision) {
+							// Try to update the most recent in-progress message for this agent
+							const msgs = useChatStore.getState().messages;
+							const lastInProgress = [...msgs].reverse().find(
+								(m) => m.type === "agent-update" && m.agent === agentName && !m.phase?.toString().endsWith("ed") && m.phase !== "complete"
+							);
+							if (lastInProgress) {
+								chat.updateMessage(lastInProgress.id, {
+									phase: data.phase as Phase,
+									content: description,
+								});
+							} else {
+								chat.addAgentUpdate(agentName, data.phase as Phase, description);
+							}
+						} else if (!isRecoverableProducerRevision) {
 							chat.addAgentUpdate(agentName, data.phase as Phase, description);
 						}
 
@@ -165,6 +180,10 @@ export function useKinetographWS() {
 						useChatStore.getState().addApprovalRequest(data.paper_edit);
 						break;
 
+                    case "caption_style_options":
+						// Caption style is auto-selected by the backend — no user action needed
+						break;
+
 					case "pipeline_complete": {
 						setPhase(data.phase || Phase.COMPLETE);
 						const chatComplete = useChatStore.getState();
@@ -172,6 +191,11 @@ export function useKinetographWS() {
 						chatComplete.setPipelineActive(false);
 						chatComplete.setAgentActivity(null);
 						chatComplete.removeLoadingMessages();
+
+						// Capture music_path from event immediately
+						if (data.music_path) {
+							setMusicPath(data.music_path);
+						}
 
 						// Re-fetch assets (synth clips may have been added)
 						KinetographAPI.getAssets()

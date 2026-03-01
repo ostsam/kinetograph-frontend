@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import {
 	Group,
 	Panel,
@@ -9,6 +9,7 @@ import {
 } from "react-resizable-panels";
 import { useKinetographWS } from "@/hooks/use-kinetograph-ws";
 import { useKinetographStore } from "@/store/use-kinetograph-store";
+import { useVideoPlayer } from "@/hooks/use-video-player";
 import { KinetographAPI } from "@/lib/api";
 import { PipelineBanner } from "@/components/pipeline-banner";
 import { AssetDropzone } from "@/components/asset-dropzone";
@@ -24,6 +25,9 @@ import {
 	Layout,
 	PanelLeftClose,
 	PanelLeftOpen,
+	Play,
+	Pause,
+	SkipBack,
 } from "lucide-react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -31,6 +35,16 @@ import { useRouter } from "next/navigation";
 
 function cn(...inputs: ClassValue[]) {
 	return twMerge(clsx(inputs));
+}
+
+function formatViewerTimecode(ms: number) {
+	const totalFrames = Math.max(0, Math.floor((ms / 1000) * 30));
+	const frames = totalFrames % 30;
+	const totalSeconds = Math.floor(totalFrames / 30);
+	const seconds = totalSeconds % 60;
+	const minutes = Math.floor(totalSeconds / 60) % 60;
+	const hours = Math.floor(totalSeconds / 3600);
+	return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}:${String(frames).padStart(2, "0")}`;
 }
 
 export default function EditorPage() {
@@ -45,6 +59,90 @@ export default function EditorPage() {
 	const selectedAssetId = useKinetographStore((s) => s.selectedAssetId);
 	const selectedAsset =
 		assets.find((asset) => asset.id === selectedAssetId) ?? null;
+
+	// Video player for timeline playback (V1 with transitions)
+	const player = useVideoPlayer();
+	const v2Clips = useKinetographStore((s) => s.v2Clips);
+	const paperEdit = useKinetographStore((s) => s.paperEdit);
+	const hasTimeline = !!(paperEdit && paperEdit.clips.length > 0);
+
+	const v2VideoRef = useRef<HTMLVideoElement>(null);
+	const loadedV2SrcRef = useRef<string | null>(null);
+
+	// Pick the first V2 clip to display as overlay
+	const visibleV2Clip = v2Clips.length > 0 ? v2Clips[0] : null;
+
+	// Resolve the stream URL for the visible overlay clip
+	const v2StreamUrl = useMemo(() => {
+		if (!visibleV2Clip) return null;
+		const asset = assets.find((a) => a.id === visibleV2Clip.sourceAssetId);
+		return asset?.stream_url ?? null;
+	}, [visibleV2Clip, assets]);
+
+	// Load V2 video source (video element is always mounted)
+	useEffect(() => {
+		const video = v2VideoRef.current;
+		if (!video) return;
+
+		if (!v2StreamUrl) {
+			video.pause();
+			video.removeAttribute("src");
+			video.load();
+			loadedV2SrcRef.current = null;
+			return;
+		}
+
+		// Resolve to absolute to compare
+		let fullUrl: string;
+		try { fullUrl = new URL(v2StreamUrl, window.location.href).href; } catch { fullUrl = v2StreamUrl; }
+		if (loadedV2SrcRef.current === fullUrl) return;
+		loadedV2SrcRef.current = fullUrl;
+
+		const seekTime = (visibleV2Clip?.inMs ?? 0) / 1000;
+		video.src = v2StreamUrl;
+		video.load();
+
+		// Show the first frame immediately: play briefly then pause to decode
+		const onCanPlay = () => {
+			video.currentTime = seekTime;
+			// Play+pause trick forces the browser to decode & render a frame
+			video.play().then(() => {
+				if (player.playbackState !== "playing") video.pause();
+			}).catch(() => {});
+		};
+		video.addEventListener("canplay", onCanPlay, { once: true });
+
+		return () => { video.removeEventListener("canplay", onCanPlay); };
+	}, [v2StreamUrl, visibleV2Clip?.inMs, player.playbackState]);
+
+	// Sync V2 play/pause with main player
+	useEffect(() => {
+		const video = v2VideoRef.current;
+		if (!video || !v2StreamUrl || !video.src) return;
+		if (player.playbackState === "playing") {
+			video.play().catch(() => {});
+		} else if (video.readyState >= 2) {
+			video.pause();
+		}
+	}, [player.playbackState, v2StreamUrl]);
+
+	// Seek handler that syncs both V1 and V2
+	const handleSeek = useCallback(
+		(ms: number) => {
+			player.seekTo(ms);
+			const video = v2VideoRef.current;
+			if (!video || !video.src) return;
+			const v2State = useKinetographStore.getState().v2Clips;
+			for (const clip of v2State) {
+				const clipEnd = clip.timelineStartMs + (clip.outMs - clip.inMs);
+				if (ms >= clip.timelineStartMs && ms < clipEnd) {
+					video.currentTime = (clip.inMs + (ms - clip.timelineStartMs)) / 1000;
+					return;
+				}
+			}
+		},
+		[player],
+	);
 
 	useEffect(() => {
 		KinetographAPI.getAssets()
@@ -116,7 +214,7 @@ export default function EditorPage() {
 					<div className="flex items-center gap-2 border-x border-zinc-800 px-4 h-10">
 						<Clock className="h-3 w-3 text-zinc-500" />
 						<span className="text-[11px] font-mono tabular text-amber-500/80">
-							00:00:00:00
+							{formatViewerTimecode(player.currentTimeDisplay)}
 						</span>
 					</div>
 					<button className="p-1 hover:bg-zinc-800 rounded-sm">
@@ -177,10 +275,53 @@ export default function EditorPage() {
 								<div className="flex h-full flex-col overflow-hidden">
 									<PipelineBanner />
 
-									<div className="flex flex-1 items-center justify-center p-8 bg-gradient-to-b from-[#121215] to-[#0c0c0e]">
+									<div className="flex flex-1 flex-col bg-gradient-to-b from-[#121215] to-[#0c0c0e]">
 										{/* Cinematic Viewer Container */}
-										<div className="relative h-full w-full overflow-hidden border border-zinc-800 bg-black shadow-[0_20px_50px_rgba(0,0,0,0.5)] group">
-											{selectedAsset ? (
+										<div className="relative flex-1 overflow-hidden border border-zinc-800 bg-black shadow-[0_20px_50px_rgba(0,0,0,0.5)] m-4 mb-0">
+											{/* V1 Timeline Videos (dual elements for crossfade transitions) */}
+											{hasTimeline && (
+												<>
+													<video
+														ref={player.videoARef}
+														className="absolute inset-0 h-full w-full object-contain"
+														playsInline
+														preload="metadata"
+													/>
+													<video
+														ref={player.videoBRef}
+														className="absolute inset-0 h-full w-full object-contain"
+														playsInline
+														preload="metadata"
+													/>
+												</>
+											)}
+
+											{/* V2 Overlay — always mounted, visibility controlled via CSS */}
+											<div
+												className={cn(
+													"absolute overflow-hidden pointer-events-none z-10 border border-amber-500/30",
+													visibleV2Clip ? "block" : "hidden",
+												)}
+												style={visibleV2Clip ? {
+													left: `${visibleV2Clip.transform.x}%`,
+													top: `${visibleV2Clip.transform.y}%`,
+													width: `${visibleV2Clip.transform.width}%`,
+													height: `${visibleV2Clip.transform.height}%`,
+													opacity: visibleV2Clip.transform.opacity,
+													borderRadius: `${visibleV2Clip.transform.borderRadius}px`,
+												} : undefined}
+											>
+												<video
+													ref={v2VideoRef}
+													className="h-full w-full object-cover bg-zinc-800"
+													playsInline
+													muted
+													preload="auto"
+												/>
+											</div>
+
+											{/* Asset preview (when no timeline) */}
+											{!hasTimeline && selectedAsset && (
 												<div className="absolute inset-0 flex items-center justify-center">
 													<video
 														key={selectedAsset.id}
@@ -191,8 +332,11 @@ export default function EditorPage() {
 														preload="metadata"
 													/>
 												</div>
-											) : (
-												<div className="absolute inset-0 flex items-center justify-center border-[20px] border-transparent">
+											)}
+
+											{/* Placeholder */}
+											{!hasTimeline && !selectedAsset && (
+												<div className="absolute inset-0 flex items-center justify-center">
 													<MonitorPlay className="h-16 w-16 text-zinc-900 opacity-50" />
 												</div>
 											)}
@@ -201,24 +345,36 @@ export default function EditorPage() {
 											<div className="absolute inset-0 border border-white/5 m-12 pointer-events-none" />
 											<div className="absolute inset-x-0 top-1/2 h-px bg-white/5 pointer-events-none" />
 											<div className="absolute inset-y-0 left-1/2 w-px bg-white/5 pointer-events-none" />
+										</div>
 
-											{/* Bottom Viewer Toolbar */}
-											<div className="absolute bottom-0 inset-x-0 h-8 bg-zinc-900/90 backdrop-blur-sm border-t border-white/5 flex items-center justify-between px-3 translate-y-full group-hover:translate-y-0 transition-transform">
-												<div className="flex items-center gap-4">
-													<span className="text-[10px] font-mono tabular text-zinc-400">
-														{selectedAsset ? "FIT: HEIGHT" : "FIT: 42%"}
-													</span>
-													<span className="text-[10px] font-mono tabular text-zinc-400">
-														{selectedAsset
-															? `${selectedAsset.width}x${selectedAsset.height}`
-															: "FULL"}
-													</span>
-												</div>
-												<div className="flex items-center gap-2">
-													<Maximize2 className="h-3 w-3 text-zinc-500 cursor-pointer hover:text-white" />
+										{/* Transport Controls */}
+										{hasTimeline && (
+											<div className="flex items-center justify-center gap-4 h-10 bg-zinc-900/50 border-t border-zinc-800 mx-4">
+												<button
+													onClick={player.stop}
+													className="p-1.5 rounded hover:bg-zinc-800 text-zinc-500 hover:text-white transition-colors"
+													title="Stop"
+												>
+													<SkipBack className="h-3.5 w-3.5" />
+												</button>
+												<button
+													onClick={player.togglePlayPause}
+													className="p-1.5 rounded-full bg-zinc-800 hover:bg-zinc-700 text-white transition-colors"
+													title={player.playbackState === "playing" ? "Pause" : "Play"}
+												>
+													{player.playbackState === "playing" ? (
+														<Pause className="h-4 w-4" />
+													) : (
+														<Play className="h-4 w-4 ml-0.5" />
+													)}
+												</button>
+												<div className="flex items-center gap-2 font-mono text-[10px] tabular-nums">
+													<span className="text-amber-500/80">{formatViewerTimecode(player.currentTimeDisplay)}</span>
+													<span className="text-zinc-600">/</span>
+													<span className="text-zinc-500">{formatViewerTimecode(player.totalDurationMs)}</span>
 												</div>
 											</div>
-										</div>
+										)}
 									</div>
 								</div>
 							</Panel>
@@ -255,7 +411,7 @@ export default function EditorPage() {
 									</div>
 
 									<div className="flex-1 p-6 overflow-y-auto custom-scrollbar">
-										<TimelineEditor />
+										<TimelineEditor onSeek={handleSeek} />
 									</div>
 								</div>
 							</Panel>

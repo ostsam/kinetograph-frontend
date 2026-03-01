@@ -30,9 +30,11 @@ import {
 	VolumeX,
 	FolderOpen,
 	Sparkles,
+	Monitor,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
+import { PREVIEW_RESOLUTIONS, PreviewResolution } from "@/types/kinetograph";
 
 const FPS = 30;
 
@@ -66,6 +68,11 @@ export default function EditorPage() {
 	const renderUrl = useKinetographStore((s) => s.renderUrl);
 	const setPlayhead = useKinetographStore((s) => s.setPlayhead);
 	const paperEdit = useKinetographStore((s) => s.paperEdit);
+	const v2Clips = useKinetographStore((s) => s.v2Clips);
+	const tracks = useKinetographStore((s) => s.tracks);
+	const musicPath = useKinetographStore((s) => s.musicPath);
+	const previewResolution = useKinetographStore((s) => s.previewResolution);
+	const setPreviewResolution = useKinetographStore((s) => s.setPreviewResolution);
 
 	const isChatOpen = useChatStore((s) => s.isOpen);
 	const setChatOpen = useChatStore((s) => s.setOpen);
@@ -94,10 +101,67 @@ export default function EditorPage() {
 
 	// ── Rendered video mode (plays final _captioned_mastered.mp4) ──
 	const renderedVideoRef = useRef<HTMLVideoElement>(null);
+	const musicAudioRef = useRef<HTMLAudioElement>(null);
 	const isRenderedMode = !!renderUrl;
 	const [rvTime, setRvTime] = useState(0);
 	const [rvDuration, setRvDuration] = useState(0);
 	const [rvPlaying, setRvPlaying] = useState(false);
+
+	// ── Track volumes from store ──
+	const a1Track = tracks.find((t) => t.id === "A1");
+	const a2Track = tracks.find((t) => t.id === "A2");
+	const a1Volume = a1Track?.muted ? 0 : (a1Track?.volume ?? 1);
+	const a2Volume = a2Track?.muted ? 0 : (a2Track?.volume ?? 0.35);
+
+	// ── V2 Overlay ──────────────────────────────────────────────────
+	const v2VideoRef = useRef<HTMLVideoElement>(null);
+	const loadedV2SrcRef = useRef<string | null>(null);
+
+	const visibleV2Clip = v2Clips.length > 0 ? v2Clips[0] : null;
+	const v2StreamUrl = useMemo(() => {
+		if (!visibleV2Clip) return null;
+		const asset = assets.find((a) => a.id === visibleV2Clip.sourceAssetId);
+		return asset?.stream_url ?? null;
+	}, [visibleV2Clip, assets]);
+
+	// Load V2 video source
+	useEffect(() => {
+		const video = v2VideoRef.current;
+		if (!video) return;
+		if (!v2StreamUrl) {
+			video.pause();
+			video.removeAttribute("src");
+			video.load();
+			loadedV2SrcRef.current = null;
+			return;
+		}
+		let fullUrl: string;
+		try { fullUrl = new URL(v2StreamUrl, window.location.href).href; } catch { fullUrl = v2StreamUrl; }
+		if (loadedV2SrcRef.current === fullUrl) return;
+		loadedV2SrcRef.current = fullUrl;
+		const seekTime = (visibleV2Clip?.inMs ?? 0) / 1000;
+		video.src = v2StreamUrl;
+		video.load();
+		const onCanPlay = () => {
+			video.currentTime = seekTime;
+			video.play().then(() => {
+				if (playbackState !== "playing") video.pause();
+			}).catch(() => {});
+		};
+		video.addEventListener("canplay", onCanPlay, { once: true });
+		return () => { video.removeEventListener("canplay", onCanPlay); };
+	}, [v2StreamUrl, visibleV2Clip?.inMs, playbackState]);
+
+	// Sync V2 play/pause with main player
+	useEffect(() => {
+		const video = v2VideoRef.current;
+		if (!video || !v2StreamUrl || !video.src) return;
+		if (playbackState === "playing") {
+			video.play().catch(() => {});
+		} else if (video.readyState >= 2) {
+			video.pause();
+		}
+	}, [playbackState, v2StreamUrl]);
 
 	useEffect(() => {
 		const v = renderedVideoRef.current;
@@ -145,6 +209,65 @@ export default function EditorPage() {
 	const effDuration = isRenderedMode ? rvDuration : totalDurationMs;
 	const effPlaying = isRenderedMode ? rvPlaying : playbackState === "playing";
 
+	// ── Apply track volumes to actual DOM elements ──
+	useEffect(() => {
+		const effectiveA1 = a1Volume * volume; // combine master + track volume
+		if (videoARef.current) videoARef.current.volume = effectiveA1;
+		if (videoBRef.current) videoBRef.current.volume = effectiveA1;
+		if (renderedVideoRef.current) renderedVideoRef.current.volume = effectiveA1;
+	}, [a1Volume, volume, videoARef, videoBRef]);
+
+	useEffect(() => {
+		if (musicAudioRef.current) {
+			musicAudioRef.current.volume = a2Volume * volume;
+		}
+	}, [a2Volume, volume]);
+
+	// ── Music audio playback ──
+	const musicStreamUrl = useMemo(() => {
+		if (!musicPath) return null;
+		return `/api/assets/stream?path=${encodeURIComponent(musicPath)}`;
+	}, [musicPath]);
+
+	// Load music source
+	useEffect(() => {
+		const audio = musicAudioRef.current;
+		if (!audio) return;
+		if (!musicStreamUrl) {
+			audio.pause();
+			audio.removeAttribute("src");
+			audio.load();
+			return;
+		}
+		if (audio.src && audio.src.includes(encodeURIComponent(musicPath || ""))) return;
+		audio.src = musicStreamUrl;
+		audio.loop = true;
+		audio.volume = a2Volume * volume;
+		audio.load();
+	}, [musicStreamUrl, musicPath, a2Volume, volume]);
+
+	// Sync music play/pause with main transport
+	useEffect(() => {
+		const audio = musicAudioRef.current;
+		if (!audio || !musicStreamUrl) return;
+		if (effPlaying) {
+			audio.play().catch(() => {});
+		} else {
+			audio.pause();
+		}
+	}, [effPlaying, musicStreamUrl]);
+
+	// Sync music seek
+	useEffect(() => {
+		const audio = musicAudioRef.current;
+		if (!audio || !musicStreamUrl || !audio.duration) return;
+		// Loop music: seek within the music duration
+		const musicSec = (effTime / 1000) % (audio.duration || 1);
+		if (Math.abs(audio.currentTime - musicSec) > 0.5) {
+			audio.currentTime = musicSec;
+		}
+	}, [effTime, musicStreamUrl]);
+
 	const handlePlayPause = useCallback(() => {
 		if (isRenderedMode && renderedVideoRef.current) {
 			const v = renderedVideoRef.current;
@@ -170,13 +293,24 @@ export default function EditorPage() {
 		(ms: number) => {
 			if (isRenderedMode && renderedVideoRef.current) {
 				const v = renderedVideoRef.current;
-				// Reverse proportional mapping: paper-edit ms → rendered video ms
 				const totalClipMs = sequenceDurationMs || rvDuration;
 				const progress = totalClipMs > 0 ? ms / totalClipMs : 0;
 				const videoSec = (progress * rvDuration) / 1000;
 				v.currentTime = Math.max(0, Math.min(videoSec, v.duration || 0));
 			} else {
 				seekTo(ms);
+			}
+			// Sync V2 overlay
+			const v2 = v2VideoRef.current;
+			if (v2 && v2.src) {
+				const v2State = useKinetographStore.getState().v2Clips;
+				for (const clip of v2State) {
+					const clipEnd = clip.timelineStartMs + (clip.outMs - clip.inMs);
+					if (ms >= clip.timelineStartMs && ms < clipEnd) {
+						v2.currentTime = (clip.inMs + (ms - clip.timelineStartMs)) / 1000;
+						return;
+					}
+				}
 			}
 		},
 		[isRenderedMode, seekTo, sequenceDurationMs, rvDuration],
@@ -262,6 +396,8 @@ export default function EditorPage() {
 	return (
 		<div className="flex h-screen w-full flex-col bg-[#0c0c0e] text-[#d1d1d1] overflow-hidden selection:bg-blue-500/30">
 			{showExportPanel && <ExportPanel onClose={() => setShowExportPanel(false)} />}
+			{/* Hidden music audio element */}
+			<audio ref={musicAudioRef} preload="auto" className="hidden" />
 
 			{/* Top Bar */}
 			<header className="flex h-9 items-center justify-between border-b border-zinc-800 bg-[#1a1a1e] px-3 z-30">
@@ -423,8 +559,27 @@ export default function EditorPage() {
 								{/* Viewer */}
 								<Panel defaultSize={60} minSize={25}>
 									<div className="flex h-full flex-col overflow-hidden bg-[#0e0e10]">
-										<div className="flex flex-1 items-center justify-center p-4">
-											<div className="relative h-full w-full overflow-hidden border border-zinc-800/50 bg-black">
+										<div className="flex flex-1 items-center justify-center p-4 relative">
+											{/* Preview resolution picker */}
+											<div className="absolute top-2 right-2 z-40">
+												<select
+													value={previewResolution}
+													onChange={(e) => setPreviewResolution(e.target.value as PreviewResolution)}
+													className="bg-zinc-900/80 border border-zinc-700 text-zinc-300 text-[9px] rounded px-1.5 py-0.5 cursor-pointer hover:bg-zinc-800 focus:outline-none focus:ring-1 focus:ring-blue-500/50 backdrop-blur-sm"
+												>
+													{(Object.entries(PREVIEW_RESOLUTIONS) as [PreviewResolution, { label: string }][]).map(([key, val]) => (
+														<option key={key} value={key}>{val.label}</option>
+													))}
+												</select>
+											</div>
+											<div
+												className="relative overflow-hidden border border-zinc-800/50 bg-black"
+												style={{
+													aspectRatio: `${PREVIEW_RESOLUTIONS[previewResolution].width} / ${PREVIEW_RESOLUTIONS[previewResolution].height}`,
+													height: '100%',
+													maxWidth: '100%',
+												}}
+											>
 											{isRenderedMode ? (
 												<>
 													{/* Final rendered video (with captions, music, transitions baked in) */}
@@ -518,6 +673,31 @@ export default function EditorPage() {
 												)}
 												</>
 											)}
+
+											{/* V2 Overlay — always mounted, CSS visibility */}
+											<div
+												className={cn(
+													"absolute overflow-hidden pointer-events-none z-10",
+													visibleV2Clip ? "block" : "hidden",
+												)}
+												style={visibleV2Clip ? {
+													left: `${visibleV2Clip.transform.x}%`,
+													top: `${visibleV2Clip.transform.y}%`,
+													width: `${visibleV2Clip.transform.width}%`,
+													height: `${visibleV2Clip.transform.height}%`,
+													opacity: visibleV2Clip.transform.opacity,
+													borderRadius: `${visibleV2Clip.transform.borderRadius}px`,
+												} : undefined}
+											>
+												<video
+													ref={v2VideoRef}
+													className="h-full w-full object-cover"
+													playsInline
+													muted
+													preload="auto"
+												/>
+											</div>
+
 											</div>
 										</div>
 									</div>
