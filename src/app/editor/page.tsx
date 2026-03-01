@@ -16,8 +16,6 @@ import { ExportPanel } from "@/components/export-panel";
 import {
 	Film,
 	MonitorPlay,
-	Maximize2,
-	Clock,
 	Layout,
 	PanelLeftClose,
 	PanelLeftOpen,
@@ -59,8 +57,6 @@ export default function EditorPage() {
 
 	const setAssets = useKinetographStore((s) => s.setAssets);
 	const assets = useKinetographStore((s) => s.assets);
-	const selectedAssetId = useKinetographStore((s) => s.selectedAssetId);
-	const selectedAsset = assets.find((a) => a.id === selectedAssetId) ?? null;
 
 	const {
 		videoRef,
@@ -260,7 +256,7 @@ export default function EditorPage() {
 							<Panel defaultSize={60} minSize={25}>
 								<div className="flex h-full flex-col overflow-hidden bg-[#0e0e10]">
 									<div className="flex flex-1 items-center justify-center p-4">
-										<div className="relative h-full w-full overflow-hidden border border-zinc-800/50 bg-black group">
+										<div className="relative h-full w-full overflow-hidden border border-zinc-800/50 bg-black">
 											<video
 												ref={videoRef}
 												className="absolute inset-0 h-full w-full object-contain"
@@ -268,41 +264,12 @@ export default function EditorPage() {
 												preload="metadata"
 											/>
 
-											{selectedAsset && playbackState === "idle" && (
-												<video
-													key={selectedAsset.id}
-													src={selectedAsset.stream_url}
-													className="absolute inset-0 h-full w-full object-contain"
-													playsInline
-													preload="metadata"
-													controls
-												/>
-											)}
-
-											{!selectedAsset && playbackState === "idle" && (
-												<div className="absolute inset-0 flex items-center justify-center">
-													<MonitorPlay className="h-12 w-12 text-zinc-800" />
-												</div>
-											)}
-
 											{playbackState === "playing" && (
 												<div className="absolute top-2 left-2 flex items-center gap-1 bg-black/60 backdrop-blur-sm px-1.5 py-0.5 rounded pointer-events-none">
 													<div className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" />
 													<span className="text-[8px] font-medium text-zinc-300">PLAY</span>
 												</div>
 											)}
-
-											{/* Guide overlays */}
-											<div className="absolute inset-x-0 top-1/2 h-px bg-white/[0.03] pointer-events-none" />
-											<div className="absolute inset-y-0 left-1/2 w-px bg-white/[0.03] pointer-events-none" />
-
-											{/* Bottom bar */}
-											<div className="absolute bottom-0 inset-x-0 h-7 bg-zinc-900/80 backdrop-blur-sm border-t border-white/5 flex items-center justify-between px-2 translate-y-full group-hover:translate-y-0 transition-transform">
-												<span className="text-[9px] font-mono text-zinc-500">
-													{selectedAsset ? `${selectedAsset.width}×${selectedAsset.height}` : "No source"}
-												</span>
-												<Maximize2 className="h-3 w-3 text-zinc-600 cursor-pointer hover:text-white" />
-											</div>
 										</div>
 									</div>
 								</div>
