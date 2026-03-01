@@ -2,31 +2,78 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowRight, Clock3, Workflow } from "lucide-react";
+import {
+	ArrowRight,
+	Play,
+	SkipBack,
+	SkipForward,
+} from "lucide-react";
 
-const livePhases = [
-	"Ingesting",
-	"Scripting",
-	"Awaiting Approval",
-	"Rendering",
-	"Mastering",
+const TIMELINE_SECONDS = 45;
+const CYCLE_DURATION_MS = 8000;
+
+const toneClasses = {
+	amber: "border-amber-500/30 bg-amber-500/10 text-amber-300/90",
+	sky: "border-sky-400/30 bg-sky-400/10 text-sky-300/90",
+	violet: "border-fuchsia-400/30 bg-fuchsia-400/10 text-fuchsia-300/90",
+	emerald: "border-emerald-400/30 bg-emerald-400/10 text-emerald-300/90",
+	zinc: "border-zinc-600/40 bg-zinc-600/10 text-zinc-400",
+} as const;
+
+type ClipTone = keyof typeof toneClasses;
+
+interface TimelineClip {
+	label: string;
+	start: number;
+	duration: number;
+	tone: ClipTone;
+}
+
+interface TimelineRow {
+	track: string;
+	clips: TimelineClip[];
+}
+
+const timelineRows: TimelineRow[] = [
+	{
+		track: "V1",
+		clips: [
+			{ label: "INT-A", start: 0, duration: 12, tone: "amber" },
+			{ label: "BROLL-CITY", start: 12, duration: 7, tone: "sky" },
+			{ label: "INT-B", start: 19, duration: 11, tone: "amber" },
+			{ label: "OUTRO", start: 30, duration: 15, tone: "zinc" },
+		],
+	},
+	{
+		track: "V2",
+		clips: [
+			{ label: "LOWER3RD", start: 3, duration: 8, tone: "violet" },
+			{ label: "CALLOUT", start: 24, duration: 10, tone: "violet" },
+		],
+	},
+	{
+		track: "A1",
+		clips: [
+			{ label: "DIALOG", start: 0, duration: 35, tone: "emerald" },
+		],
+	},
+	{
+		track: "A2",
+		clips: [
+			{ label: "MUSIC-BED", start: 4, duration: 41, tone: "emerald" },
+		],
+	},
 ];
 
-const PHASE_DURATION_MS = 1000;
-const LOOP_PAUSE_MS = 0;
-const RUN_DURATION_MS = livePhases.length * PHASE_DURATION_MS;
-const TOTAL_CYCLE_MS = RUN_DURATION_MS + LOOP_PAUSE_MS;
-
 export function HeroCommandSection() {
-	const [elapsedCycleMs, setElapsedCycleMs] = useState(0);
+	const [elapsedMs, setElapsedMs] = useState(0);
 
 	useEffect(() => {
 		let raf = 0;
 		const start = performance.now();
 
 		const tick = (now: number) => {
-			const elapsed = (now - start) % TOTAL_CYCLE_MS;
-			setElapsedCycleMs(elapsed);
+			setElapsedMs((now - start) % CYCLE_DURATION_MS);
 			raf = window.requestAnimationFrame(tick);
 		};
 
@@ -34,124 +81,152 @@ export function HeroCommandSection() {
 		return () => window.cancelAnimationFrame(raf);
 	}, []);
 
-	const phaseState = useMemo(() => {
-		if (elapsedCycleMs >= RUN_DURATION_MS) {
-			return {
-				activeIndex: -1,
-				activeProgress: 1,
-			};
-		}
-
-		const activeIndex = Math.floor(elapsedCycleMs / PHASE_DURATION_MS);
-		const activePhaseElapsedMs = elapsedCycleMs % PHASE_DURATION_MS;
-		return {
-			activeIndex,
-			activeProgress: activePhaseElapsedMs / PHASE_DURATION_MS,
-		};
-	}, [elapsedCycleMs]);
+	const playheadProgress = elapsedMs / CYCLE_DURATION_MS;
+	const playheadSec = Math.round(playheadProgress * TIMELINE_SECONDS);
+	const playheadFrames = Math.floor((elapsedMs / 40) % 25);
+	const rulerTicks = useMemo(
+		() => Array.from({ length: 10 }, (_, i) => i * 5),
+		[],
+	);
 
 	return (
-		<section className="mt-12 grid gap-8 lg:grid-cols-[1.15fr_0.85fr] lg:items-stretch">
-			<div className="landing-appear relative overflow-hidden rounded-sm border border-zinc-800 bg-gradient-to-br from-zinc-900/55 via-[#11131b] to-[#0d0e13] p-6 shadow-[0_30px_60px_rgba(0,0,0,0.42)] sm:p-8">
-				<div className="landing-float pointer-events-none absolute -right-10 top-8 h-36 w-36 rotate-12 border border-amber-400/25" />
-				<div className="landing-energy pointer-events-none absolute inset-x-0 top-1/2 h-px bg-gradient-to-r from-transparent via-amber-300/75 to-transparent" />
-				<div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_90%_15%,rgba(245,158,11,0.12),transparent_38%)]" />
-
-				<p className="landing-appear landing-appear-delay-1 mb-5 inline-flex items-center gap-2 rounded-sm border border-zinc-700/70 bg-zinc-900/75 px-3 py-1 text-[10px] font-mono uppercase tracking-[0.18em] text-zinc-400">
-					<Workflow className="h-3.5 w-3.5 text-amber-400" />
-					Autonomous Post-Production Studio
-				</p>
-
-				<h1 className="landing-appear landing-appear-delay-2 max-w-3xl text-3xl font-bold tracking-tight text-zinc-100 sm:text-5xl">
-					From raw footage to final cut, without sacrificing editorial control.
+		<section className="mt-16 sm:mt-20">
+			{/* Hero copy */}
+			<div className="landing-appear mx-auto max-w-3xl text-center">
+				<h1 className="landing-appear text-balance text-4xl font-bold tracking-tight text-white sm:text-6xl lg:text-7xl">
+					Autonomous post&#8209;production from rushes to master.
 				</h1>
-				<p className="landing-appear landing-appear-delay-3 mt-5 max-w-2xl text-sm leading-relaxed text-zinc-400 sm:text-base">
-					Kinetograph is built for teams that want studio-grade speed and
-					structure. Upload footage, set the narrative brief, approve the
-					sequence, and let the system orchestrate the full post pipeline.
+				<p className="landing-appear landing-appear-delay-1 mx-auto mt-6 max-w-xl text-pretty text-base leading-relaxed text-zinc-400 sm:text-lg">
+					AI agents handle ingest, paper edits, assembly, and delivery
+					while you stay focused on story and pacing.
 				</p>
-
-				<div className="landing-appear landing-appear-delay-4 mt-8 flex flex-wrap items-center gap-3">
+				<div className="landing-appear landing-appear-delay-2 mt-8 flex flex-wrap items-center justify-center gap-3">
 					<Link
 						href="/editor"
-						className="inline-flex items-center gap-2 rounded-sm bg-amber-500 px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] text-black transition-all hover:-translate-y-px hover:bg-amber-400"
+						className="inline-flex items-center gap-2 rounded-lg bg-amber-500 px-5 py-2.5 text-sm font-semibold text-black transition-opacity duration-200 hover:opacity-90"
 					>
-						Launch Workspace
-						<ArrowRight className="h-3.5 w-3.5" />
+						Open Timeline
+						<ArrowRight className="h-4 w-4" />
 					</Link>
 					<a
-						href="#workflow"
-						className="inline-flex items-center gap-2 rounded-sm border border-zinc-700 bg-zinc-900/70 px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] text-zinc-300 transition-all hover:-translate-y-px hover:border-zinc-500 hover:text-zinc-100"
+						href="#features"
+						className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-5 py-2.5 text-sm font-semibold text-zinc-300 transition-colors duration-200 hover:border-white/20 hover:text-white"
 					>
-						See Workflow
-						<Clock3 className="h-3.5 w-3.5" />
+						See How It Works
 					</a>
 				</div>
 			</div>
 
-			<div className="landing-appear landing-appear-delay-2 relative rounded-sm border border-zinc-800 bg-[#101118] p-5">
-				<div className="absolute inset-x-5 top-5 h-px bg-gradient-to-r from-transparent via-zinc-700/80 to-transparent" />
-				<div className="flex items-center justify-between border-b border-zinc-800 pb-3">
-					<div>
-						<p className="text-[10px] font-mono uppercase tracking-[0.18em] text-zinc-500">
-							Command Deck
-						</p>
-						<p className="mt-1 text-xs font-bold uppercase tracking-[0.14em] text-zinc-200">
-							Swarm Execution State
-						</p>
+			{/* Timeline mock — the hero visual */}
+			<div className="landing-appear landing-appear-delay-3 mx-auto mt-14 max-w-4xl">
+				<div className="overflow-hidden rounded-xl border border-white/[0.06] bg-[#111114] shadow-2xl shadow-black/50">
+					{/* Toolbar */}
+					<div className="flex items-center justify-between border-b border-white/[0.06] px-4 py-2.5">
+						<div className="flex items-center gap-3">
+							<div className="flex gap-1.5">
+								<div className="h-2.5 w-2.5 rounded-full bg-zinc-700" />
+								<div className="h-2.5 w-2.5 rounded-full bg-zinc-700" />
+								<div className="h-2.5 w-2.5 rounded-full bg-zinc-700" />
+							</div>
+							<span className="text-xs font-medium text-zinc-500">
+								Launch Spot v3 — Sequence
+							</span>
+						</div>
+						<div className="tabular text-xs font-mono text-amber-400/80">
+							00:00:{playheadSec.toString().padStart(2, "0")}:{playheadFrames.toString().padStart(2, "0")}
+						</div>
 					</div>
-					<div className="rounded-sm border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[9px] font-mono uppercase tracking-widest text-amber-300">
-						LIVE
-					</div>
-				</div>
 
-				<div className="mt-4 space-y-2">
-					{livePhases.map((phase, index) => (
+					{/* Preview area */}
+					<div className="relative aspect-[2.35/1] overflow-hidden bg-[#0a0b0f]">
+
+						{/* Letterbox bars */}
+						<div className="pointer-events-none absolute inset-x-0 top-0 h-[10%] bg-black/80" />
+						<div className="pointer-events-none absolute inset-x-0 bottom-0 h-[10%] bg-black/80" />
+						{/* Subtle safe-area frame */}
+						<div className="pointer-events-none absolute inset-x-[5%] inset-y-[12%] border border-white/[0.03]" />
+						{/* Transport controls */}
+						<div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-3 rounded-lg border border-white/[0.06] bg-black/60 px-3 py-1.5 backdrop-blur-sm">
+							<button
+								type="button"
+								className="text-zinc-500 transition-colors hover:text-zinc-300"
+								aria-label="Skip backward"
+							>
+								<SkipBack className="h-3.5 w-3.5" />
+							</button>
+							<button
+								type="button"
+								className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-500 text-black transition-opacity hover:opacity-90"
+								aria-label="Play"
+							>
+								<Play className="h-3 w-3 fill-current" />
+							</button>
+							<button
+								type="button"
+								className="text-zinc-500 transition-colors hover:text-zinc-300"
+								aria-label="Skip forward"
+							>
+								<SkipForward className="h-3.5 w-3.5" />
+							</button>
+						</div>
+					</div>
+
+					{/* Timeline tracks */}
+					<div className="relative border-t border-white/[0.06] bg-[#0d0e12] px-3 py-3">
+						{/* Playhead — spans full height of ruler + tracks */}
 						<div
-							key={phase}
-							className="landing-appear group flex items-center gap-3 rounded-sm border border-zinc-800/80 bg-zinc-900/45 px-3 py-2.5"
-							style={{ animationDelay: `${250 + index * 80}ms` }}
+							className="pointer-events-none absolute top-3 bottom-3 z-10 w-px bg-amber-400"
+							style={{ left: `calc(0.75rem + ${playheadProgress * 100}%)` }}
 						>
 							<div
-								className={`h-2 w-2 rounded-full ${
-									index === phaseState.activeIndex
-										? "landing-glow bg-amber-400"
-										: index < phaseState.activeIndex ||
-											  phaseState.activeIndex === -1
-											? "bg-amber-400/65"
-											: "bg-zinc-700"
-								}`}
+								className="absolute -top-1 left-1/2 -translate-x-1/2 h-0 w-0 border-x-[4px] border-t-[6px] border-x-transparent border-t-amber-400"
 							/>
-							<span className="text-[11px] font-semibold uppercase tracking-wide text-zinc-300">
-								{phase}
-							</span>
-							<div className="ml-auto h-1.5 w-16 rounded-full bg-zinc-800">
-								<div
-									className="h-full rounded-full bg-amber-400/80 transition-[width] duration-75 ease-linear"
-									style={{
-										width: `${Math.round(
-											(index < phaseState.activeIndex ||
-											phaseState.activeIndex === -1
-												? 1
-												: index === phaseState.activeIndex
-													? phaseState.activeProgress
-													: 0) * 100,
-										)}%`,
-									}}
-								/>
-							</div>
 						</div>
-					))}
-				</div>
 
-				<div className="mt-5 rounded-sm border border-zinc-800 bg-black/35 p-4">
-					<p className="text-[10px] font-mono uppercase tracking-[0.18em] text-zinc-500">
-						Human Checkpoint
-					</p>
-					<p className="mt-2 text-xs leading-relaxed text-zinc-300">
-						Execution pauses at the paper edit so your team can validate story
-						choices before any final render is committed.
-					</p>
+						{/* Ruler */}
+						<div className="relative mb-2 h-5">
+							{rulerTicks.map((tick) => (
+								<div
+									key={tick}
+									className="absolute top-0 bottom-0"
+									style={{ left: `${(tick / TIMELINE_SECONDS) * 100}%` }}
+								>
+									<div className="h-full w-px bg-zinc-800" />
+									<span className="absolute left-1 top-0 text-[9px] font-mono tabular text-zinc-600">
+										{tick.toString().padStart(2, "0")}s
+									</span>
+								</div>
+							))}
+						</div>
+
+						{/* Tracks */}
+						<div className="space-y-1">
+							{timelineRows.map((row) => (
+								<div
+									key={row.track}
+									className="relative flex h-9 items-center"
+								>
+									<div className="w-8 shrink-0 text-[10px] font-mono text-zinc-600">
+										{row.track}
+									</div>
+									<div className="relative h-full flex-1 rounded bg-zinc-900/50">
+										{row.clips.map((clip) => (
+											<div
+												key={`${row.track}-${clip.label}`}
+												className={`absolute top-1 bottom-1 flex items-center overflow-hidden rounded px-2 text-[10px] font-medium border ${toneClasses[clip.tone]}`}
+												style={{
+													left: `${(clip.start / TIMELINE_SECONDS) * 100}%`,
+													width: `${(clip.duration / TIMELINE_SECONDS) * 100}%`,
+												}}
+											>
+												<span className="truncate">{clip.label}</span>
+											</div>
+										))}
+									</div>
+								</div>
+							))}
+						</div>
+					</div>
 				</div>
 			</div>
 		</section>

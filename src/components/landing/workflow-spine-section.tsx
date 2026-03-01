@@ -1,58 +1,50 @@
 import { workflow } from "@/components/landing/landing-content";
-import { Layers } from "lucide-react";
 
 export function WorkflowSpineSection() {
 	return (
-		<section id="workflow" className="mt-16">
-			<div className="relative overflow-hidden rounded-sm border border-zinc-800 bg-[#101017]/90 p-6 sm:p-7">
-				<div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_80%_15%,rgba(59,130,246,0.08),transparent_35%)]" />
-				<div className="mb-8 flex items-center gap-3">
-					<div className="landing-glow flex h-8 w-8 items-center justify-center rounded-sm border border-zinc-700 bg-zinc-900 text-amber-400">
-						<Layers className="h-4 w-4" />
-					</div>
-					<div>
-						<p className="text-[10px] font-mono uppercase tracking-[0.2em] text-zinc-500">
-							Workflow
-						</p>
-						<h2 className="text-xl font-bold text-zinc-100 sm:text-2xl">
-							A clear four-step path from ingest to delivery.
-						</h2>
-					</div>
-				</div>
+		<section id="workflow" className="mt-28 sm:mt-32">
+			<div className="landing-appear mx-auto mb-12 max-w-2xl text-center">
+				<p className="text-xs font-medium uppercase tracking-widest text-amber-400/80">
+					Review Workflow
+				</p>
+				<h2 className="mt-3 text-3xl font-bold tracking-tight text-white sm:text-4xl">
+					Human checkpoints built into every cut.
+				</h2>
+				<p className="mt-4 text-base leading-relaxed text-zinc-400">
+					Execution pauses at each stage so editors can review, reorder,
+					and approve before the next step locks in.
+				</p>
+			</div>
 
-				<div className="relative">
-					<div className="absolute bottom-0 left-4 top-0 w-px bg-gradient-to-b from-amber-500/70 via-zinc-700/80 to-transparent md:left-1/2" />
+			<div className="relative mx-auto max-w-2xl">
+				{/* Vertical connecting line */}
+				<div className="absolute left-[15px] top-2 bottom-2 w-px bg-gradient-to-b from-amber-500/60 via-amber-500/20 to-transparent" />
 
-					<div className="space-y-4">
-						{workflow.map((item, index) => (
-							<div
-								key={item.step}
-								className="landing-appear relative pl-12 md:pl-0"
-								style={{ animationDelay: `${index * 130}ms` }}
-							>
-								<div className="landing-glow absolute left-[9px] top-4 h-3 w-3 rounded-full border border-zinc-900 bg-amber-400 md:left-1/2 md:-translate-x-1/2" />
-								<div
-									className={
-										index % 2 === 0
-											? "md:pr-[calc(50%+1.5rem)]"
-											: "md:pl-[calc(50%+1.5rem)]"
-									}
-								>
-									<article className="rounded-sm border border-zinc-800 bg-zinc-900/40 p-4 transition-colors hover:border-zinc-700">
-										<p className="text-[10px] font-mono uppercase tracking-[0.22em] text-amber-300">
-											Step {item.step}
-										</p>
-										<h3 className="mt-2 text-sm font-semibold uppercase tracking-wide text-zinc-100">
-											{item.title}
-										</h3>
-										<p className="mt-1 text-sm text-zinc-400">
-											{item.description}
-										</p>
-									</article>
+				<div className="space-y-6">
+					{workflow.map((item, index) => (
+						<div
+							key={item.step}
+							className="landing-appear relative pl-12"
+							style={{ animationDelay: `${index * 100}ms` }}
+						>
+							{/* Dot on the line */}
+							<div className="absolute left-[11px] top-5 h-[9px] w-[9px] rounded-full border-2 border-[#0c0c0e] bg-amber-400" />
+
+							<article className="rounded-xl border border-white/[0.06] bg-[#111114] p-5 transition-colors duration-200 hover:border-white/[0.12]">
+								<div className="flex items-baseline gap-3">
+									<span className="tabular text-sm font-bold text-amber-400/70">
+										{item.step}
+									</span>
+									<h3 className="text-[15px] font-semibold text-zinc-100">
+										{item.title}
+									</h3>
 								</div>
-							</div>
-						))}
-					</div>
+								<p className="mt-2 text-sm leading-relaxed text-zinc-500">
+									{item.description}
+								</p>
+							</article>
+						</div>
+					))}
 				</div>
 			</div>
 		</section>

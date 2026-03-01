@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -16,6 +16,10 @@ export const metadata: Metadata = {
 	title: "Kinetograph",
 	description:
 		"Autonomous post-production for turning raw footage into an approved final cut.",
+};
+
+export const viewport: Viewport = {
+	themeColor: "#0c0c0e",
 };
 
 export default function RootLayout({
